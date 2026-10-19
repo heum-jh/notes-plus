@@ -58,16 +58,44 @@ enum NotesAX {
         return nil
     }
 
-    /// Presses the first item under Notes' Format menu whose title is in `titles`.
+    static let formatMenu = ["포맷", "Format"]
+    static let editMenu = ["편집", "Edit"]
+
+    /// Presses the first item under the Notes menu titled one of `menu` whose title is in `titles`.
     /// Titles are matched at runtime instead of fixed menu paths, so items that move between macOS releases still resolve.
     @discardableResult
-    static func pressFormatMenu(_ titles: [String]) -> Bool {
+    static func pressMenu(_ menu: [String], _ titles: [String]) -> Bool {
         guard let app = frontmostNotes else { return false }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
         guard let bar = element(axApp, kAXMenuBarAttribute),
-              let format = children(bar).first(where: { ["포맷", "Format"].contains(copy($0, kAXTitleAttribute) as? String) }),
-              let item = findMenuItem(in: format, titles: Set(titles), depth: 0) else { return false }
+              let top = children(bar).first(where: { menu.contains(copy($0, kAXTitleAttribute) as? String ?? "") }),
+              let item = findMenuItem(in: top, titles: Set(titles), depth: 0) else { return false }
         return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+    }
+
+    static let pasteMarkdownItem = ["Markdown으로 붙여넣기", "Paste as Markdown"]
+    static let pastePlainItem = ["붙여넣고 스타일 일치", "Paste and Match Style"]
+
+    /// Inserts `text` through a Notes Edit menu paste item, restoring the clipboard afterwards.
+    /// Notes ignores multi-line writes to `AXSelectedText`, so pasting is the reliable way to insert blocks of text.
+    static func paste(_ text: String, using item: [String]) -> Bool {
+        let pb = NSPasteboard.general
+        let saved: [NSPasteboardItem] = pb.pasteboardItems?.map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) { copy.setData(data, forType: type) }
+            }
+            return copy
+        } ?? []
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+        let pressed = pressMenu(editMenu, item)
+        // ponytail: fixed delay for Notes to read the clipboard; poll changeCount if pastes get dropped.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            pb.clearContents()
+            if !saved.isEmpty { pb.writeObjects(saved) }
+        }
+        return pressed
     }
 
     private static func findMenuItem(in el: AXUIElement, titles: Set<String>, depth: Int) -> AXUIElement? {

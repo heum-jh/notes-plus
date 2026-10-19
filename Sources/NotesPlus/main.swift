@@ -2,6 +2,7 @@ import AppKit
 
 if CommandLine.arguments.contains("--selftest") {
     SlashQuery.selfTest()
+    MarkdownShortcut.selfTest()
     print("selftest ok")
     exit(0)
 }

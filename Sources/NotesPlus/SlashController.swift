@@ -53,10 +53,13 @@ final class SlashController {
             default: break
             }
         }
-        // ponytail: reading the note via AX only on `/` or while the menu is open keeps typing cheap.
-        if panel.isVisible || NSEvent(cgEvent: event)?.characters == "/" {
-            // Let Notes apply the key first, then read the updated text.
+        // ponytail: reading the note via AX only on trigger keys or while the menu is open keeps typing cheap.
+        let typed = NSEvent(cgEvent: event)?.characters ?? ""
+        // Let Notes apply the key first, then read the updated text.
+        if panel.isVisible || typed == "/" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in self?.refresh() }
+        } else if MarkdownShortcut.triggers.contains(typed) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { MarkdownShortcut.applyIfMatched() }
         }
         return Unmanaged.passUnretained(event)
     }
@@ -89,10 +92,12 @@ final class SlashController {
         NotesAX.insert(target.element, "")
         switch command.action {
         case .formatMenu(let titles):
-            if !NotesAX.pressFormatMenu(titles) { NSSound.beep() }
+            if !NotesAX.pressMenu(NotesAX.formatMenu, titles) { NSSound.beep() }
         case .template(let url):
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { NSSound.beep(); return }
-            NotesAX.insert(target.element, text)
+            // Markdown templates keep headings and checklists; .txt is pasted as plain text.
+            let item = url.pathExtension == "md" ? NotesAX.pasteMarkdownItem : NotesAX.pastePlainItem
+            if !NotesAX.paste(text, using: item) { NSLog("NotesPlus: paste menu not found: \(item)"); NSSound.beep() }
         }
     }
 
