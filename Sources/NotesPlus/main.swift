@@ -10,6 +10,9 @@ if CommandLine.arguments.contains("--selftest") {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let slash = SlashController()
+    private let observer = NotesObserver()
+    private let formatBar = FormatBar()
+    private let backlinks = Backlinks()
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -23,15 +26,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Templates.ensureDirectory()
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         if AXIsProcessTrustedWithOptions(prompt) {
-            slash.start()
+            startFeatures()
         } else {
             // Start as soon as the user grants Accessibility.
             permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
                 guard AXIsProcessTrusted() else { return }
                 timer.invalidate()
-                self?.slash.start()
+                self?.startFeatures()
             }
         }
+    }
+
+    private func startFeatures() {
+        slash.start()
+        observer.onChange = { [weak self] in
+            self?.formatBar.update()
+            self?.backlinks.update()
+        }
+        observer.start()
     }
 
     @objc private func openTemplates() {

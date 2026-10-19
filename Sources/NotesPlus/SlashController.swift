@@ -10,7 +10,7 @@ final class SlashController {
 
     private var tap: CFMachPort?
     private let model = SlashMenuModel()
-    private lazy var panel = SlashPanel(model: model) { [weak self] index in self?.execute(index) }
+    private lazy var panel = FloatingPanel(SlashMenuView(model: model) { [weak self] index in self?.execute(index) })
     /// Text area and `/query` range the menu currently targets.
     private var target: (element: AXUIElement, range: NSRange)?
     /// Location of a `/` dismissed with Esc, so it is not reopened while typing after it.
@@ -60,6 +60,8 @@ final class SlashController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in self?.refresh() }
         } else if MarkdownShortcut.triggers.contains(typed) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { MarkdownShortcut.applyIfMatched() }
+        } else if typed == "[" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { Backlinks.convertWikiLinkTrigger() }
         }
         return Unmanaged.passUnretained(event)
     }
@@ -80,7 +82,7 @@ final class SlashController {
         model.items = items
         model.selected = 0
         let caret = NotesAX.caretRect(el, at: sel.location) ?? NSRect(origin: NSEvent.mouseLocation, size: .zero)
-        panel.show(below: caret)
+        panel.show(topLeft: NSPoint(x: caret.minX, y: caret.minY - 4))
     }
 
     private func execute(_ index: Int) {
@@ -115,27 +117,6 @@ final class SlashMenuModel {
     func move(_ delta: Int) {
         guard !items.isEmpty else { return }
         selected = (selected + delta + items.count) % items.count
-    }
-}
-
-/// Borderless panel that never takes focus away from Notes.
-final class SlashPanel: NSPanel {
-    private let hosting: NSHostingView<SlashMenuView>
-
-    init(model: SlashMenuModel, onPick: @escaping (Int) -> Void) {
-        hosting = NSHostingView(rootView: SlashMenuView(model: model, onPick: onPick))
-        super.init(contentRect: .zero, styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: true)
-        level = .popUpMenu
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = true
-        contentView = hosting
-    }
-
-    func show(below caret: NSRect) {
-        setContentSize(hosting.fittingSize)
-        setFrameTopLeftPoint(NSPoint(x: caret.minX, y: caret.minY - 4))
-        orderFrontRegardless()
     }
 }
 

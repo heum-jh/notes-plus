@@ -43,19 +43,55 @@ enum NotesAX {
 
     /// Caret rectangle in Cocoa screen coordinates (bottom-left origin).
     static func caretRect(_ el: AXUIElement, at location: Int) -> NSRect? {
-        for candidate in [CFRange(location: location, length: 0), CFRange(location: max(location - 1, 0), length: 1)] {
-            var r = candidate
-            guard let param = AXValueCreate(.cfRange, &r) else { continue }
-            var out: CFTypeRef?
-            guard AXUIElementCopyParameterizedAttributeValue(el, kAXBoundsForRangeParameterizedAttribute as CFString, param, &out) == .success,
-                  let out, CFGetTypeID(out) == AXValueGetTypeID() else { continue }
-            var rect = CGRect.zero
-            AXValueGetValue(out as! AXValue, .cgRect, &rect)
-            guard rect.height > 0 else { continue }
-            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-            return NSRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+        bounds(el, NSRange(location: location, length: 0)) ?? bounds(el, NSRange(location: max(location - 1, 0), length: 1))
+    }
+
+    /// Screen rectangle of a text range in Cocoa coordinates.
+    static func bounds(_ el: AXUIElement, _ range: NSRange) -> NSRect? {
+        var r = CFRange(location: range.location, length: range.length)
+        guard let param = AXValueCreate(.cfRange, &r) else { return nil }
+        var out: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(el, kAXBoundsForRangeParameterizedAttribute as CFString, param, &out) == .success,
+              let out, CFGetTypeID(out) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        AXValueGetValue(out as! AXValue, .cgRect, &rect)
+        return rect.height > 0 ? cocoaRect(rect) : nil
+    }
+
+    /// Frame of the focused Notes window in Cocoa coordinates.
+    static func focusedWindowFrame() -> NSRect? {
+        guard let app = frontmostNotes,
+              let window = element(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute),
+              let pos = copy(window, kAXPositionAttribute), let size = copy(window, kAXSizeAttribute),
+              CFGetTypeID(pos) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
+        var origin = CGPoint.zero, extent = CGSize.zero
+        AXValueGetValue(pos as! AXValue, .cgPoint, &origin)
+        AXValueGetValue(size as! AXValue, .cgSize, &extent)
+        return cocoaRect(CGRect(origin: origin, size: extent))
+    }
+
+    /// Note UUID from the text area's `Note[id=<UUID>]` identifier.
+    static func noteIdentifier(_ el: AXUIElement) -> String? {
+        guard let id = copy(el, kAXIdentifierAttribute) as? String, id.hasPrefix("Note[id="), id.hasSuffix("]") else { return nil }
+        return String(id.dropFirst("Note[id=".count).dropLast())
+    }
+
+    /// AX uses a top-left origin on the primary screen; AppKit uses bottom-left.
+    private static func cocoaRect(_ rect: CGRect) -> NSRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        return NSRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    /// Types `text` as synthetic key events, so Notes reacts as if the user typed it.
+    static func type(_ text: String) {
+        for unit in text.utf16 {
+            for down in [true, false] {
+                var u = unit
+                let event = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down)
+                event?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &u)
+                event?.post(tap: .cghidEventTap)
+            }
         }
-        return nil
     }
 
     static let formatMenu = ["포맷", "Format"]
