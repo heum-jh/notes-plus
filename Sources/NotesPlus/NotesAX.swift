@@ -82,6 +82,15 @@ enum NotesAX {
         return NSRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
+    /// Sends a keyboard shortcut to the frontmost app.
+    static func pressKey(_ code: CGKeyCode, _ flags: CGEventFlags) {
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)
+            event?.flags = flags
+            event?.post(tap: .cghidEventTap)
+        }
+    }
+
     /// Types `text` as synthetic key events, so Notes reacts as if the user typed it.
     static func type(_ text: String) {
         for unit in text.utf16 {

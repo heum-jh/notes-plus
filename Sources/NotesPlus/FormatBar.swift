@@ -3,27 +3,39 @@ import SwiftUI
 
 /// Floating toolbar that follows the caret (or selection) while a note body is focused.
 final class FormatBar {
+    enum Action {
+        /// Shortcuts go through Notes' own menu validation, so style toggles see the current state.
+        /// AX-pressing those menu items uses a stale check mark and only ever adds the style.
+        case key(CGKeyCode, CGEventFlags)
+        case menu([String], [String])
+    }
+
     struct Button {
         let icon: String
         let help: String
-        let menu: [String]
-        let titles: [String]
+        let action: Action
     }
 
+    // Key codes are ANSI positions: B=11, I=34, U=32, E=14.
     static let buttons: [Button] = [
-        .init(icon: "bold", help: "볼드체", menu: NotesAX.formatMenu, titles: ["볼드체", "Bold"]),
-        .init(icon: "italic", help: "이탤릭체", menu: NotesAX.formatMenu, titles: ["이탤릭체", "Italic"]),
-        .init(icon: "underline", help: "밑줄체", menu: NotesAX.formatMenu, titles: ["밑줄체", "Underline"]),
-        .init(icon: "strikethrough", help: "취소선", menu: NotesAX.formatMenu, titles: ["취소선", "Strikethrough"]),
-        .init(icon: "highlighter", help: "강조", menu: NotesAX.formatMenu, titles: ["강조", "Highlight"]),
-        .init(icon: "textformat.size", help: "머리말", menu: NotesAX.formatMenu, titles: ["머리말", "Heading"]),
-        .init(icon: "list.bullet", help: "구분점 목록", menu: NotesAX.formatMenu, titles: ["구분점 목록", "Bulleted List"]),
-        .init(icon: "checklist", help: "체크리스트", menu: NotesAX.formatMenu, titles: ["체크리스트", "Checklist"]),
-        .init(icon: "link", help: "링크 추가", menu: NotesAX.editMenu, titles: ["링크 추가…", "Add Link…"]),
+        .init(icon: "bold", help: "볼드체 (⌘B)", action: .key(11, .maskCommand)),
+        .init(icon: "italic", help: "이탤릭체 (⌘I)", action: .key(34, .maskCommand)),
+        .init(icon: "underline", help: "밑줄체 (⌘U)", action: .key(32, .maskCommand)),
+        // ponytail: no default shortcut, so the menu path may not toggle off; add a shortcut lookup if it bites.
+        .init(icon: "strikethrough", help: "취소선", action: .menu(NotesAX.formatMenu, ["취소선", "Strikethrough"])),
+        .init(icon: "highlighter", help: "강조 (⇧⌘E)", action: .key(14, [.maskCommand, .maskShift])),
+        .init(icon: "paintpalette", help: "색상 보기", action: .menu(NotesAX.formatMenu, ["색상 보기", "Show Colors"])),
+        .init(icon: "textformat.size", help: "머리말", action: .menu(NotesAX.formatMenu, ["머리말", "Heading"])),
+        .init(icon: "list.bullet", help: "구분점 목록", action: .menu(NotesAX.formatMenu, ["구분점 목록", "Bulleted List"])),
+        .init(icon: "checklist", help: "체크리스트", action: .menu(NotesAX.formatMenu, ["체크리스트", "Checklist"])),
+        .init(icon: "link", help: "링크 추가", action: .menu(NotesAX.editMenu, ["링크 추가…", "Add Link…"])),
     ]
 
     private lazy var panel = FloatingPanel(FormatBarView { button in
-        if !NotesAX.pressMenu(button.menu, button.titles) { NSSound.beep() }
+        switch button.action {
+        case .key(let code, let flags): NotesAX.pressKey(code, flags)
+        case .menu(let menu, let titles): if !NotesAX.pressMenu(menu, titles) { NSSound.beep() }
+        }
     })
 
     func update() {
@@ -47,6 +59,10 @@ struct FormatBarView: View {
                 }
                 .buttonStyle(.borderless)
                 .help(button.help)
+                // Notes owns the cursor while it is frontmost, so re-assert on every move.
+                .onContinuousHover { phase in
+                    if case .active = phase { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
+                }
             }
         }
         .padding(4)
