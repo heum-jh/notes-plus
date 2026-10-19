@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Floating toolbar above selected text in Notes.
+/// Floating toolbar that follows the caret (or selection) while a note body is focused.
 final class FormatBar {
     struct Button {
         let icon: String
@@ -27,8 +27,8 @@ final class FormatBar {
     })
 
     func update() {
-        guard let el = NotesAX.focusedTextArea(), let sel = NotesAX.selectedRange(el), sel.length > 0,
-              let rect = NotesAX.bounds(el, sel) else {
+        guard let el = NotesAX.focusedTextArea(), let sel = NotesAX.selectedRange(el),
+              let rect = sel.length > 0 ? NotesAX.bounds(el, sel) : NotesAX.caretRect(el, at: sel.location) else {
             panel.orderOut(nil)
             return
         }
