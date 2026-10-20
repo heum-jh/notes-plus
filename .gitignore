@@ -2,15 +2,29 @@
 .build/
 .swiftpm/
 *.xcodeproj/
+*.xcworkspace/
 xcuserdata/
 DerivedData/
+*.dSYM/
+*.xcarchive/
 
 # Build and release output (scripts/build.sh, scripts/release.sh)
 build/
 dist/
+*.zip
 
 # Local-only notes (reverse-engineering analysis is not published)
 docs/analysis.md
+
+# Secrets and signing material
+.env
+.env.*
+*.p12
+*.cer
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
 
 # Tooling state
 .omc/

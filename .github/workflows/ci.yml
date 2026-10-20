@@ -1,0 +1,12 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build -c release
+      - run: .build/release/NotesPlus --selftest

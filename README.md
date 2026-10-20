@@ -24,7 +24,7 @@ scripts/build.sh          # build/NotesPlus.app 생성
 open build/NotesPlus.app
 ```
 
-서명 인증서가 없으면 ad-hoc 서명으로 빌드되며, 이 경우 빌드할 때마다 손쉬운 사용 권한을 다시 켜야 한다. `SIGN_ID` 환경 변수로 인증서를 지정할 수 있다.
+서명 인증서는 `SIGN_ID` 환경 변수나 `git config notesplus.signId <인증서 SHA-1>`(로컬 전용)로 지정한다. 지정하지 않으면 ad-hoc 서명이며, 이 경우 빌드할 때마다 손쉬운 사용 권한을 다시 켜야 한다.
 
 ## 릴리스
 
@@ -35,3 +35,7 @@ scripts/release.sh 0.2.0
 `Info.plist` 버전 갱신 → 커밋 → `v0.2.0` 태그 → 푸시 → GitHub Release에 앱 zip 첨부. 버전은 [Semantic Versioning](https://semver.org/lang/ko/)을 따른다.
 
 배포 zip은 공증(notarization)되지 않았으므로 다른 Mac에서는 처음 실행 시 Gatekeeper 경고가 뜬다.
+
+## 라이선스
+
+MIT

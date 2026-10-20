@@ -1,6 +1,7 @@
 #!/bin/sh
-# Builds build/NotesPlus.app. A stable signing identity keeps the Accessibility grant across rebuilds;
-# without one (other machines), it falls back to ad-hoc signing and the grant resets on every build.
+# Builds build/NotesPlus.app.
+# Signing identity: $SIGN_ID, else `git config notesplus.signId` (kept local, never committed), else ad-hoc.
+# A stable identity keeps the Accessibility grant across rebuilds; ad-hoc builds need it re-granted each time.
 set -e
 cd "$(dirname "$0")/.."
 swift build -c release
@@ -9,7 +10,6 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp .build/release/NotesPlus "$APP/Contents/MacOS/"
 cp Info.plist "$APP/Contents/"
-SIGN_ID="${SIGN_ID:-7B8A937D3850CD20EE12E213C3AEEA7203243436}"
-security find-identity -v -p codesigning | grep -q "$SIGN_ID" || SIGN_ID=-
+SIGN_ID="${SIGN_ID:-$(git config notesplus.signId || echo -)}"
 codesign --force --sign "$SIGN_ID" "$APP"
 echo "$APP"
