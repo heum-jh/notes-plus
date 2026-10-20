@@ -34,7 +34,7 @@ struct SlashCommand {
     /// macOS Writing Tools (Apple Intelligence) from 편집 > 글쓰기 도구; NotesPlus runs no model itself.
     /// With no selection they work on the surrounding text, as Notes decides.
     static let writingTools: [SlashCommand] = [
-        .init(title: "이어 쓰기", icon: "pencil.line", keywords: "continue compose 작문 write", action: .menu(NotesAX.editMenu, ["작문…", "Compose…"])),
+        .init(title: "이어 쓰기", icon: "pencil.line", keywords: "continue compose 작문 write chatgpt gpt", action: .menu(NotesAX.editMenu, ["작문…", "Compose…"])),
         .init(title: "다듬기", icon: "sparkles", keywords: "improve rewrite 재작성", action: .menu(NotesAX.editMenu, ["재작성", "Rewrite"])),
         .init(title: "요약", icon: "paperclip", keywords: "summarize summary", action: .menu(NotesAX.editMenu, ["요약", "Summarize"])),
         .init(title: "맞춤법·문법 교정", icon: "checkmark", keywords: "fix spelling grammar proofread 교정", action: .menu(NotesAX.editMenu, ["교정", "Proofread"])),
@@ -42,7 +42,7 @@ struct SlashCommand {
         .init(title: "친근하게", icon: "face.smiling", keywords: "friendly tone", action: .menu(NotesAX.editMenu, ["친근하게 만들기", "Make Friendly"])),
         .init(title: "전문적으로", icon: "briefcase", keywords: "professional tone", action: .menu(NotesAX.editMenu, ["전문적으로 만들기", "Make Professional"])),
         .init(title: "키 포인트", icon: "list.star", keywords: "key points", action: .menu(NotesAX.editMenu, ["키 포인트 생성", "Key Points"])),
-        .init(title: "직접 요청", icon: "questionmark.square", keywords: "custom prompt ai 글쓰기 도구 longer 길게", action: .menu(NotesAX.editMenu, ["글쓰기 도구 표시", "Show Writing Tools"])),
+        .init(title: "직접 요청", icon: "questionmark.square", keywords: "custom prompt ai 글쓰기 도구 longer 길게 chatgpt gpt", action: .menu(NotesAX.editMenu, ["글쓰기 도구 표시", "Show Writing Tools"])),
     ]
 
     static func all() -> [SlashCommand] {
