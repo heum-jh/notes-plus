@@ -40,6 +40,6 @@ final class NotesObserver {
         let work = DispatchWorkItem { [weak self] in self?.onChange() }
         pending = work
         // Waits out drag-selection and rapid typing before touching AX again.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
     }
 }
