@@ -82,6 +82,16 @@ enum NotesAX {
         return NSRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
+    /// Character attributes at `location` (keys like AXFont, AXForegroundColor, AXUnderline, AXStrikethrough).
+    static func attributes(_ el: AXUIElement, at location: Int) -> [NSAttributedString.Key: Any] {
+        var cf = CFRange(location: location, length: 1)
+        var out: CFTypeRef?
+        guard let range = AXValueCreate(.cfRange, &cf),
+              AXUIElementCopyParameterizedAttributeValue(el, "AXAttributedStringForRange" as CFString, range, &out) == .success,
+              let string = out as? NSAttributedString, string.length > 0 else { return [:] }
+        return string.attributes(at: 0, effectiveRange: nil)
+    }
+
     /// Sends a keyboard shortcut to the frontmost app.
     static func pressKey(_ code: CGKeyCode, _ flags: CGEventFlags) {
         for down in [true, false] {

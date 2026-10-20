@@ -38,12 +38,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startFeatures() {
+        allowBackgroundCursor()
         slash.start()
         observer.onChange = { [weak self] in
             self?.formatBar.update()
             self?.backlinks.update()
         }
         observer.start()
+    }
+
+    /// A background app's NSCursor changes are ignored unless this private WindowServer property is set;
+    /// without it the format bar can't show the pointing hand while Notes is frontmost.
+    private func allowBackgroundCursor() {
+        typealias DefaultConnection = @convention(c) () -> Int32
+        typealias SetProperty = @convention(c) (Int32, Int32, CFString, CFTypeRef) -> Int32
+        guard let main = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_CGSDefaultConnection"),
+              let set = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSSetConnectionProperty") else { return }
+        let connection = unsafeBitCast(main, to: DefaultConnection.self)()
+        _ = unsafeBitCast(set, to: SetProperty.self)(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
     }
 
     @objc private func openTemplates() {
