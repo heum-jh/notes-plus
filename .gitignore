@@ -1,3 +1,22 @@
+# SwiftPM / Xcode
 .build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# Build and release output (scripts/build.sh, scripts/release.sh)
 build/
+dist/
+
+# Local-only notes (reverse-engineering analysis is not published)
+docs/analysis.md
+
+# Tooling state
+.omc/
+.claude/
+.vscode/
+.idea/
+
+# macOS
 .DS_Store
