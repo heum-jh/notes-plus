@@ -93,8 +93,8 @@ final class SlashController {
         NotesAX.setSelectedRange(target.element, target.range)
         NotesAX.insert(target.element, "")
         switch command.action {
-        case .formatMenu(let titles):
-            if !NotesAX.pressMenu(NotesAX.formatMenu, titles) { NSSound.beep() }
+        case .menu(let menu, let titles):
+            if !NotesAX.pressMenu(menu, titles) { NSSound.beep() }
         case .template(let url):
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { NSSound.beep(); return }
             // Markdown templates keep headings and checklists; .txt is pasted as plain text.
