@@ -34,6 +34,8 @@ scripts/release.sh 0.2.0
 
 `Info.plist` 버전 갱신 → 커밋 → `v0.2.0` 태그 → 푸시 → GitHub Release에 앱 zip 첨부. 버전은 [Semantic Versioning](https://semver.org/lang/ko/)을 따른다.
 
+앱 메뉴의 "업데이트 확인…"과 하루 한 번 자동 확인으로 [Sparkle](https://sparkle-project.org) 업데이트를 받는다. EdDSA 개인 키는 `generate_keys --account notes-plus`로 로그인 키체인에 있으며, 잃어버리면 기존 사용자에게 업데이트를 보낼 수 없으므로 `generate_keys --account notes-plus -x <파일>`로 백업해 둔다.
+
 배포 zip은 공증(notarization)되지 않았으므로 다른 Mac에서는 처음 실행 시 Gatekeeper 경고가 뜬다.
 
 ## 라이선스

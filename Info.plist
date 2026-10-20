@@ -2,12 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>ko</string>
 	<key>CFBundleExecutable</key>
 	<string>NotesPlus</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.ljiheum.notes-plus</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ko</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>NotesPlus</string>
 	<key>CFBundlePackageType</key>
@@ -20,5 +26,11 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/heum-jh/notes-plus/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>mUt8C18m+oCkYgVKqCDSkjERjeVy6UN6gHvi8hjDyik=</string>
 </dict>
 </plist>

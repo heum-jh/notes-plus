@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 
 if CommandLine.arguments.contains("--selftest") {
     SlashQuery.selfTest()
@@ -14,10 +15,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let formatBar = FormatBar()
     private let backlinks = Backlinks()
     private var permissionTimer: Timer?
+    // Checks the appcast daily (SUEnableAutomaticChecks in Info.plist) and offers to install new releases.
+    private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "NotesPlus")
         let menu = NSMenu()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        menu.addItem(withTitle: "NotesPlus \(version)", action: nil, keyEquivalent: "")
+        menu.addItem(withTitle: "업데이트 확인…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "").target = updater
+        menu.addItem(.separator())
         menu.addItem(withTitle: "템플릿 폴더 열기", action: #selector(openTemplates), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "NotesPlus 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
