@@ -100,7 +100,7 @@ struct MenuActions {
 }
 
 struct MenuPanelView: View {
-    static let size = NSSize(width: 320, height: 310)
+    static let size = NSSize(width: 320, height: 272)
 
     let actions: MenuActions
     @State private var order = MenuEntry.ordered(Settings.menuOrder)
