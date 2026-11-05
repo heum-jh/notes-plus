@@ -3,12 +3,13 @@ import SwiftUI
 /// Settings window: sidebar of panes on the left, the selected pane on the right.
 struct SettingsView: View {
     private enum Pane: CaseIterable, Identifiable {
-        case general, templates, bar
+        case general, slash, templates, bar
 
         var id: Self { self }
         var title: String {
             switch self {
             case .general: "일반"
+            case .slash: "/ 명령"
             case .templates: "템플릿"
             case .bar: "서식 바"
             }
@@ -16,6 +17,7 @@ struct SettingsView: View {
         var symbol: String {
             switch self {
             case .general: "gearshape.fill"
+            case .slash: "slash.circle.fill"
             case .templates: "doc.text.fill"
             case .bar: "textformat"
             }
@@ -23,6 +25,7 @@ struct SettingsView: View {
         var color: Color {
             switch self {
             case .general: .gray
+            case .slash: .blue
             case .templates: .brown
             case .bar: .orange
             }
@@ -40,6 +43,7 @@ struct SettingsView: View {
             Group {
                 switch pane {
                 case .general: GeneralSettings(actions: actions)
+                case .slash: SlashSettingsView()
                 case .templates: TemplatesPane()
                 case .bar: BarSettingsView(onChange: onBarChange)
                 }

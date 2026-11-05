@@ -160,7 +160,9 @@ final class SlashController {
             let text = Templates.render(raw)
             // Markdown templates keep headings and checklists; .txt is pasted as plain text.
             let item = url.pathExtension == "md" ? NotesAX.pasteMarkdownItem : NotesAX.pastePlainItem
-            if !NotesAX.paste(text, using: item) { NSLog("NotesPlus: paste menu not found: \(item)"); NSSound.beep() }
+            let pasted = NotesAX.paste(text, using: item)
+            NSLog("NotesPlus: template \(url.lastPathComponent) pasted=\(pasted) item=\(item.first ?? "")")
+            if !pasted { NSSound.beep() }
         }
     }
 
@@ -186,11 +188,16 @@ final class SlashMenuModel {
 }
 
 struct SlashMenuView: View {
+    /// Rows shown before the list scrolls; enough that the groups near the top of the default order are never hidden.
+    static let visibleRows = 13
+
     let model: SlashMenuModel
     let onPick: (Int) -> Void
 
     var body: some View {
-        // ponytail: row height 28 is an estimate; the list scrolls past 10 rows.
+        let hidden = model.items.count - Self.visibleRows
+        // ponytail: row height 26 is an estimate; the list scrolls past `visibleRows`.
+        VStack(spacing: 0) {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -211,8 +218,17 @@ struct SlashMenuView: View {
                     }
                 }
             }
-            .frame(height: CGFloat(min(model.items.count, 10)) * 28 + CGFloat(model.items.prefix(10).filter(\.dividerBefore).count) * 9)
+            .frame(height: CGFloat(min(model.items.count, Self.visibleRows)) * 26 + CGFloat(model.items.prefix(Self.visibleRows).filter(\.dividerBefore).count) * 9)
+            .scrollIndicators(.visible)
             .onChange(of: model.selected) { _, new in proxy.scrollTo(new) }
+        }
+        // Without this the rows below the cut-off look like they do not exist.
+        if hidden > 0 {
+            Label("아래로 \(hidden)개 더", systemImage: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+        }
         }
         .padding(6)
         .frame(width: 240)

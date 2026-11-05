@@ -42,7 +42,7 @@ final class FormatBar {
         .init(icon: "text.alignright", help: "오른쪽 정렬", action: .menu(NotesAX.formatMenu, ["오른쪽 정렬", "Align Right"])),
     ]
 
-    static let separatorKey = "|"
+    static let separatorKey = LayoutKeys.separator
 
     struct BarItem: Identifiable {
         let id: Int
@@ -52,11 +52,8 @@ final class FormatBar {
 
     /// Saved order made complete: unknown or repeated buttons dropped, buttons added since the layout was saved appended.
     static func order(_ layout: [String]) -> [String] {
-        let known = Set(buttons.map(\.icon))
-        var seen = Set<String>()
-        var result = layout.filter { $0 == separatorKey || (known.contains($0) && seen.insert($0).inserted) }
-        result += buttons.map(\.icon).filter { !seen.contains($0) }
-        return result
+        let icons = buttons.map(\.icon)
+        return LayoutKeys.order(layout, known: icons, fallback: icons)
     }
 
     /// What the bar draws: hidden buttons removed, and separators collapsed so none leads, trails or doubles up.
@@ -170,6 +167,12 @@ final class FormatBarModel {
     var layout: [String] = []
     /// Set by the settings window while the pointer is over a row, to point out that button.
     var highlighted: String?
+
+    init(layout: [String] = [], hidden: Set<String> = [], highlighted: String? = nil) {
+        self.layout = layout
+        self.hidden = hidden
+        self.highlighted = highlighted
+    }
 }
 
 struct FormatBarView: View {

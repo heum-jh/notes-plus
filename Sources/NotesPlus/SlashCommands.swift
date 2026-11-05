@@ -72,14 +72,43 @@ struct SlashCommand {
         .init(title: "날짜와 시간", icon: "calendar.badge.clock", keywords: "datetime 날짜 시간", action: .text("{{datetime}}")),
     ]
 
+    /// Everything the / menu can list, in default order, each marked with the default section divider above it.
+    /// The templates group is always here (even when empty) so the settings editor can place it.
+    static func rootItems() -> [SlashCommand] {
+        formats
+            + [.init(title: "글쓰기 도구", icon: "wand.and.stars", keywords: "writing tools ai", action: .group(writingTools), dividerBefore: true),
+               .init(title: "템플릿", icon: "doc.text", keywords: "template", action: .group(Templates.tree()))]
+            + insertions
+    }
+
+    /// Titles and separators in display order: the saved layout completed, or the default when never customized.
+    static func order(_ saved: [String], _ roots: [SlashCommand]) -> [String] {
+        let fallback = roots.flatMap { ($0.dividerBefore ? [LayoutKeys.separator] : []) + [$0.title] }
+        return LayoutKeys.order(saved, known: roots.map(\.title), fallback: fallback)
+    }
+
+    /// Roots in the user's order without hidden ones. Separators become `dividerBefore`, never leading or doubled.
+    static func arrange(_ roots: [SlashCommand], layout: [String], hidden: Set<String>) -> [SlashCommand] {
+        let byTitle = Dictionary(uniqueKeysWithValues: roots.map { ($0.title, $0) })
+        var result: [SlashCommand] = []
+        var separatorPending = false
+        for key in order(layout, roots) {
+            if key == LayoutKeys.separator { separatorPending = !result.isEmpty; continue }
+            guard !hidden.contains(key), var item = byTitle[key] else { continue }
+            item.dividerBefore = separatorPending
+            separatorPending = false
+            result.append(item)
+        }
+        return result
+    }
+
     static func tree(inTable: Bool = false) -> [SlashCommand] {
-        let templates = Templates.tree()
-        var formats = formats
-        // Separator between the table commands and the first format.
-        if inTable { formats[0].dividerBefore = true }
-        return (inTable ? tableCommands : []) + formats + insertions
-            + [.init(title: "글쓰기 도구", icon: "wand.and.stars", keywords: "writing tools ai", action: .group(writingTools), dividerBefore: true)]
-            + (templates.isEmpty ? [] : [.init(title: "템플릿", icon: "doc.text", keywords: "template", action: .group(templates), dividerBefore: true)])
+        // An empty templates group would be a dead row.
+        let roots = rootItems().filter { !($0.isGroup && $0.leaves.isEmpty) }
+        var items = arrange(roots, layout: Settings.slashLayout, hidden: Settings.hiddenSlashItems)
+        // Separator between the table commands and the rest.
+        if inTable, !items.isEmpty { items[0].dividerBefore = true }
+        return (inTable ? tableCommands : []) + items
     }
 
     var isGroup: Bool { if case .group = action { true } else { false } }
@@ -161,6 +190,16 @@ enum SlashQuery {
         check("a/b", 3, nil)
         check("/he llo", 7, nil)
         check("", 0, nil)
+
+        // / menu layout: default order and dividers, hidden rows, separators that never lead or double up.
+        let roots = SlashCommand.rootItems()
+        precondition(Set(roots.map(\.title)).count == roots.count, "root titles must be unique")
+        let standard = SlashCommand.arrange(roots, layout: [], hidden: [])
+        precondition(standard.map(\.title) == roots.map(\.title) && !standard[0].dividerBefore)
+        precondition(standard.filter(\.dividerBefore).map(\.title) == ["구분점 목록", "블록 인용", "글쓰기 도구", "구분선"])
+        let custom = SlashCommand.arrange(roots, layout: ["|", "표", "|", "|", "제목"], hidden: ["본문"])
+        precondition(custom.prefix(2).map(\.title) == ["표", "제목"] && !custom[0].dividerBefore && custom[1].dividerBefore)
+        precondition(!custom.contains { $0.title == "본문" })
 
         // Templates: folders become submenus, empty folders and other file types are skipped, search sees only leaves.
         let dir = FileManager.default.temporaryDirectory.appending(path: "notesplus-selftest-\(UUID().uuidString)")

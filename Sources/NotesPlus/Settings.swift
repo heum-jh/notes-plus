@@ -31,6 +31,17 @@ enum Settings {
         set { UserDefaults.standard.set(newValue, forKey: "menuOrder") }
     }
 
+    /// `/` menu rows (by title) in display order, with `LayoutKeys.separator` entries. Empty = default order.
+    static var slashLayout: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "slashLayout") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "slashLayout") }
+    }
+
+    static var hiddenSlashItems: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "hiddenSlashItems") ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: "hiddenSlashItems") }
+    }
+
     /// Button icons in display order, with `FormatBar.separatorKey` entries for separator lines. Empty = default order.
     static var barLayout: [String] {
         get { UserDefaults.standard.stringArray(forKey: "barLayout") ?? [] }
