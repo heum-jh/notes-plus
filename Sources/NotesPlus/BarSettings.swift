@@ -12,6 +12,9 @@ struct BarSettingsView: View {
     @State private var rows = FormatBar.order(Settings.barLayout).map { Row(key: $0) }
     @State private var hidden = Settings.hiddenBarItems
     @State private var preview = FormatBarModel()
+    @State private var shownExpanded = true
+    /// Collapsed by default: hidden buttons are rarely touched.
+    @State private var hiddenExpanded = false
 
     private var shownCount: Int { FormatBar.buttons.filter { !hidden.contains($0.icon) }.count }
     /// The ON area: shown buttons and separators, in bar order. Hidden buttons trail in the saved layout.
@@ -20,9 +23,10 @@ struct BarSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            PaneHeader(title: "서식 바", subtitle: "표시할 버튼과 순서, 구분선을 정합니다.")
             previewCard
             // Two separate cards so the ON and OFF areas stay visible side by side without scrolling.
-            areaCard(header: areaHeader("표시 중", symbol: "eye.fill", count: shownCount, tint: .accentColor)) {
+            areaCard(header: areaHeader("표시 중", symbol: "eye.fill", count: shownCount, tint: .accentColor, expanded: $shownExpanded), expanded: shownExpanded, fillsSpace: true) {
                 List {
                     ForEach(shownRows) { row in barRow(row, shown: true) }
                         .onMove { source, destination in
@@ -34,7 +38,7 @@ struct BarSettingsView: View {
                 }
                 .areaListStyle()
             }
-            areaCard(header: areaHeader("숨김", symbol: "eye.slash.fill", count: hiddenRows.count, tint: .secondary)) {
+            areaCard(header: areaHeader("숨김", symbol: "eye.slash.fill", count: hiddenRows.count, tint: .secondary, expanded: $hiddenExpanded), expanded: hiddenExpanded, fillsSpace: false) {
                 if hiddenRows.isEmpty {
                     Text("숨긴 항목이 없어요")
                         .font(.caption)
@@ -48,6 +52,7 @@ struct BarSettingsView: View {
                     .frame(height: min(CGFloat(hiddenRows.count) * 38 + 8, 150))
                 }
             }
+            if !shownExpanded { Spacer(minLength: 0) }
             HStack {
                 Button { rows.append(Row(key: FormatBar.separatorKey)); save() } label: {
                     Label("구분선 추가", systemImage: "plus")
@@ -64,7 +69,7 @@ struct BarSettingsView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { refreshPreview() }
     }
@@ -83,10 +88,7 @@ struct BarSettingsView: View {
             .animation(.snappy(duration: 0.25), value: preview.layout)
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(LinearGradient(colors: [Color.accentColor.opacity(0.16), Color.accentColor.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.accentColor.opacity(0.1)))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.accentColor.opacity(0.2)))
     }
 
@@ -109,17 +111,19 @@ struct BarSettingsView: View {
         .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
     }
 
-    private func areaCard<Content: View>(header: some View, @ViewBuilder content: () -> Content) -> some View {
+    private func areaCard<Content: View>(header: some View, expanded: Bool, fillsSpace: Bool, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) {
             header
-            content()
+            if expanded { content() }
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, expanded ? 4 : 0)
+        .frame(maxHeight: expanded && fillsSpace ? .infinity : nil)
         .background(RoundedRectangle(cornerRadius: 12).fill(.quaternary.opacity(0.35)))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func areaHeader(_ title: String, symbol: String, count: Int, tint: Color) -> some View {
+    private func areaHeader(_ title: String, symbol: String, count: Int, tint: Color, expanded: Binding<Bool>) -> some View {
+        Button { withAnimation(.snappy(duration: 0.25)) { expanded.wrappedValue.toggle() } } label: {
         HStack(spacing: 6) {
             Image(systemName: symbol).foregroundStyle(tint)
             Text(title).font(.subheadline.weight(.semibold))
@@ -130,9 +134,16 @@ struct BarSettingsView: View {
                 .background(Capsule().fill(tint.opacity(0.18)))
                 .contentTransition(.numericText())
             Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// Showing a button puts it at the end of the ON area; hiding sends it to the OFF area.
