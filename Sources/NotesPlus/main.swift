@@ -7,6 +7,7 @@ if CommandLine.arguments.contains("--selftest") {
     SlashQuery.selfTest()
     MarkdownShortcut.selfTest()
     FormatBar.selfTest()
+    MenuEntry.selfTest()
     print("selftest ok")
     exit(0)
 }
@@ -18,32 +19,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let formatBar = FormatBar()
     private let backlinks = Backlinks()
     private var permissionTimer: Timer?
-    private var barSettingsWindow: NSWindow?
+    private var settingsWindow: NSWindow?
+    private let panel: NSPopover = {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        return popover
+    }()
     // Checks the appcast daily (SUEnableAutomaticChecks in Info.plist) and offers to install new releases.
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "NotesPlus")
-        let menu = NSMenu()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        menu.addItem(withTitle: "NotesPlus \(version)", action: nil, keyEquivalent: "")
-        menu.addItem(withTitle: "업데이트 확인…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "").target = updater
-        menu.addItem(.separator())
-        for feature in Settings.Feature.allCases {
-            let item = menu.addItem(withTitle: feature.title, action: #selector(toggleFeature(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = feature
-            item.state = Settings.isOn(feature) ? .on : .off
-        }
-        menu.addItem(withTitle: "서식 바 설정…", action: #selector(openBarSettings), keyEquivalent: "").target = self
-        let login = menu.addItem(withTitle: "로그인 시 자동 실행", action: #selector(toggleLogin(_:)), keyEquivalent: "")
-        login.target = self
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "템플릿 폴더 열기", action: #selector(openTemplates), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "NotesPlus 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        statusItem.menu = menu
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(togglePanel)
 
         Templates.ensureDirectory()
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -81,40 +69,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = unsafeBitCast(set, to: SetProperty.self)(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
     }
 
-    @objc private func toggleFeature(_ sender: NSMenuItem) {
-        guard let feature = sender.representedObject as? Settings.Feature else { return }
-        Settings.set(feature, !Settings.isOn(feature))
-        sender.state = Settings.isOn(feature) ? .on : .off
-        slash.hide()
-        observer.onChange()  // Panels of a feature that was just turned off close right away.
+    @objc private func togglePanel() {
+        guard let button = statusItem.button else { return }
+        if panel.isShown { panel.performClose(nil); return }
+        panel.contentViewController = NSHostingController(rootView: MenuPanelView(actions: menuActions()))
+        panel.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
-    @objc private func openBarSettings() {
-        let view = BarSettingsView { [weak self] in self?.observer.onChange() }
-        let window = barSettingsWindow ?? NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "서식 바 설정"
+    private func menuActions() -> MenuActions {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        return MenuActions(
+            version: version,
+            setFeature: { [weak self] feature, on in
+                Settings.set(feature, on)
+                self?.slash.hide()
+                self?.observer.onChange()  // Panels of a feature that was just turned off close right away.
+            },
+            setLogin: { [weak self] on in self?.setLogin(on) ?? false },
+            loginEnabled: { SMAppService.mainApp.status == .enabled },
+            run: { [weak self] entry in self?.run(entry) }
+        )
+    }
+
+    private func run(_ entry: MenuEntry) {
+        panel.performClose(nil)
+        switch entry {
+        case .settings: openSettings()
+        case .templates: NSWorkspace.shared.open(Templates.directory)
+        case .update: updater.checkForUpdates(nil)
+        case .quit: NSApp.terminate(nil)
+        default: break
+        }
+    }
+
+    private func openSettings() {
+        let view = SettingsView(actions: menuActions()) { [weak self] in self?.observer.onChange() }
+        let window = settingsWindow ?? NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = "NotesPlus 설정"
         window.contentViewController = NSHostingController(rootView: view)
         window.isReleasedWhenClosed = false
-        window.center()
-        barSettingsWindow = window
+        if !window.isVisible { window.center() }
+        settingsWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
 
-    @objc private func toggleLogin(_ sender: NSMenuItem) {
+    /// Returns whether the login item is enabled afterwards.
+    private func setLogin(_ on: Bool) -> Bool {
         do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() } else { try SMAppService.mainApp.register() }
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
             NSLog("NotesPlus: login item change failed: \(error)")
             NSSound.beep()
         }
         // Registering can succeed yet wait for the user to approve it in System Settings.
         if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
-        sender.state = SMAppService.mainApp.status == .enabled ? .on : .off
-    }
-
-    @objc private func openTemplates() {
-        NSWorkspace.shared.open(Templates.directory)
+        return SMAppService.mainApp.status == .enabled
     }
 }
 

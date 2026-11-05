@@ -25,6 +25,12 @@ enum Settings {
         set { UserDefaults.standard.set(Array(newValue), forKey: "hiddenBarItems") }
     }
 
+    /// Menu bar panel rows in display order (`MenuEntry` raw values). Empty = default order.
+    static var menuOrder: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "menuOrder") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "menuOrder") }
+    }
+
     /// Button icons in display order, with `FormatBar.separatorKey` entries for separator lines. Empty = default order.
     static var barLayout: [String] {
         get { UserDefaults.standard.stringArray(forKey: "barLayout") ?? [] }

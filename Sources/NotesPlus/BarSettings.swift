@@ -32,7 +32,7 @@ struct BarSettingsView: View {
             }
         }
         .padding(16)
-        .frame(width: 380, height: 580)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { refreshPreview() }
     }
 
