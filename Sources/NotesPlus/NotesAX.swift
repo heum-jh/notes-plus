@@ -14,9 +14,29 @@ enum NotesAX {
     static func focusedTextArea() -> AXUIElement? {
         guard let app = frontmostNotes else { return nil }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
-        guard let el = element(axApp, kAXFocusedUIElementAttribute),
-              copy(el, kAXRoleAttribute) as? String == kAXTextAreaRole else { return nil }
-        return el
+        guard let el = element(axApp, kAXFocusedUIElementAttribute) else { return tableCellTextArea(in: axApp) }
+        return copy(el, kAXRoleAttribute) as? String == kAXTextAreaRole ? el : nil
+    }
+
+    /// Notes reports no focused element while the caret is in a table cell, so the table's selected cell stands in.
+    /// ponytail: walks the window tree, only reached when nothing is focused; cache the table if typing there gets slow.
+    private static func tableCellTextArea(in axApp: AXUIElement) -> AXUIElement? {
+        guard let window = element(axApp, kAXFocusedWindowAttribute), let table = descendant(window, "AXTable", depth: 0),
+              let cell = (copy(table, "AXSelectedCells") as? [AXUIElement])?.first else { return nil }
+        return descendant(cell, kAXTextAreaRole, depth: 0)
+    }
+
+    private static func descendant(_ el: AXUIElement, _ role: String, depth: Int) -> AXUIElement? {
+        if copy(el, kAXRoleAttribute) as? String == role { return el }
+        guard depth < 12 else { return nil }
+        for child in children(el) { if let hit = descendant(child, role, depth: depth + 1) { return hit } }
+        return nil
+    }
+
+    /// The table cell containing `textArea`, or nil for the note body.
+    static func tableCell(of textArea: AXUIElement) -> AXUIElement? {
+        guard let parent = element(textArea, kAXParentAttribute), copy(parent, kAXRoleAttribute) as? String == "AXCell" else { return nil }
+        return parent
     }
 
     static func value(_ el: AXUIElement) -> String? {

@@ -5,12 +5,18 @@ struct SlashCommand {
         /// Notes menu (`NotesAX.formatMenu`/`editMenu`) and item titles (Korean, English).
         case menu([String], [String])
         case template(URL)
+        /// Custom AX action of the table cell under the caret (names are Notes' own, English).
+        case table(String)
+        /// Submenu opened with → (cascader); typing a query searches its leaves flat.
+        case group([SlashCommand])
     }
 
     let title: String
     let icon: String
     let keywords: String
     let action: Action
+    /// Draws a separator above this row to mark the start of a section.
+    var dividerBefore = false
 
     func matches(_ query: String) -> Bool {
         query.isEmpty || title.localizedCaseInsensitiveContains(query) || keywords.localizedCaseInsensitiveContains(query)
@@ -22,11 +28,11 @@ struct SlashCommand {
         .init(title: "머리말", icon: "textformat.size", keywords: "heading h1", action: .menu(NotesAX.formatMenu, ["머리말", "Heading"])),
         .init(title: "부머리말", icon: "textformat.size.smaller", keywords: "subheading h2", action: .menu(NotesAX.formatMenu, ["부머리말", "Subheading"])),
         .init(title: "본문", icon: "text.alignleft", keywords: "body text", action: .menu(NotesAX.formatMenu, ["본문", "Body"])),
-        .init(title: "구분점 목록", icon: "list.bullet", keywords: "bullet ul list", action: .menu(NotesAX.formatMenu, ["구분점 목록", "Bulleted List"])),
+        .init(title: "구분점 목록", icon: "list.bullet", keywords: "bullet ul list", action: .menu(NotesAX.formatMenu, ["구분점 목록", "Bulleted List"]), dividerBefore: true),
         .init(title: "대시 목록", icon: "list.dash", keywords: "dash list", action: .menu(NotesAX.formatMenu, ["대시 목록", "Dashed List"])),
         .init(title: "번호 목록", icon: "list.number", keywords: "numbered ol list", action: .menu(NotesAX.formatMenu, ["번호 목록", "Numbered List"])),
         .init(title: "체크리스트", icon: "checklist", keywords: "checklist todo", action: .menu(NotesAX.formatMenu, ["체크리스트", "Checklist"])),
-        .init(title: "블록 인용", icon: "text.quote", keywords: "quote", action: .menu(NotesAX.formatMenu, ["블록 인용", "Block Quote"])),
+        .init(title: "블록 인용", icon: "text.quote", keywords: "quote", action: .menu(NotesAX.formatMenu, ["블록 인용", "Block Quote"]), dividerBefore: true),
         .init(title: "모노 스타일", icon: "chevron.left.forwardslash.chevron.right", keywords: "mono code", action: .menu(NotesAX.formatMenu, ["모노 스타일", "Monostyled"])),
         .init(title: "표", icon: "tablecells", keywords: "table", action: .menu(NotesAX.formatMenu, ["표", "Table"])),
     ]
@@ -45,10 +51,27 @@ struct SlashCommand {
         .init(title: "직접 요청", icon: "questionmark.square", keywords: "custom prompt ai 글쓰기 도구 longer 길게 chatgpt gpt", action: .menu(NotesAX.editMenu, ["글쓰기 도구 표시", "Show Writing Tools"])),
     ]
 
-    static func all() -> [SlashCommand] {
-        formats + writingTools + Templates.all().map {
-            .init(title: $0.deletingPathExtension().lastPathComponent, icon: "doc.text", keywords: "template 템플릿", action: .template($0))
-        }
+    /// Row/column insertion already has ⌘⌥+arrow shortcuts in Notes; only deletion lacks one.
+    static let tableCommands: [SlashCommand] = [
+        .init(title: "행 삭제", icon: "rectangle.badge.minus", keywords: "delete row 삭제", action: .table("Delete rows")),
+        .init(title: "열 삭제", icon: "rectangle.badge.minus", keywords: "delete column 삭제", action: .table("Delete columns")),
+    ]
+
+    static func tree(inTable: Bool = false) -> [SlashCommand] {
+        let templates = Templates.tree()
+        var formats = formats
+        // Separator between the table commands and the first format.
+        if inTable { formats[0].dividerBefore = true }
+        return (inTable ? tableCommands : []) + formats
+            + [.init(title: "글쓰기 도구", icon: "wand.and.stars", keywords: "writing tools ai", action: .group(writingTools), dividerBefore: true)]
+            + (templates.isEmpty ? [] : [.init(title: "템플릿", icon: "doc.text", keywords: "template", action: .group(templates), dividerBefore: true)])
+    }
+
+    var isGroup: Bool { if case .group = action { true } else { false } }
+
+    /// Selectable commands under this one, for flat search.
+    var leaves: [SlashCommand] {
+        if case .group(let children) = action { children.flatMap(\.leaves) } else { [self] }
     }
 }
 
@@ -65,10 +88,18 @@ enum Templates {
             .write(to: directory.appending(path: "회의록.md"), atomically: true, encoding: .utf8)
     }
 
-    static func all() -> [URL] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { ["md", "txt"].contains($0.pathExtension) }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+    /// Subfolders become submenus, `.md`/`.txt` files become templates.
+    static func tree(at dir: URL = directory) -> [SlashCommand] {
+        let urls = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles)) ?? []
+        let sorted = urls.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        let folders: [SlashCommand] = sorted.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.compactMap {
+            let children = tree(at: $0)
+            return children.isEmpty ? nil : .init(title: $0.lastPathComponent, icon: "folder", keywords: "", action: .group(children))
+        }
+        let files: [SlashCommand] = sorted.filter { ["md", "txt"].contains($0.pathExtension) }.map {
+            .init(title: $0.deletingPathExtension().lastPathComponent, icon: "doc.text", keywords: "template 템플릿", action: .template($0))
+        }
+        return folders + files
     }
 }
 

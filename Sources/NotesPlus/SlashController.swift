@@ -5,16 +5,17 @@ import SwiftUI
 /// Watches key presses in Notes and shows a `/` command menu at the caret.
 final class SlashController {
     private enum Key {
-        static let `return`: Int64 = 36, enter: Int64 = 76, tab: Int64 = 48, escape: Int64 = 53, up: Int64 = 126, down: Int64 = 125
+        static let `return`: Int64 = 36, enter: Int64 = 76, tab: Int64 = 48, escape: Int64 = 53, up: Int64 = 126, down: Int64 = 125, left: Int64 = 123, right: Int64 = 124
     }
 
     private var tap: CFMachPort?
     private let model = SlashMenuModel()
     private lazy var panel = FloatingPanel(SlashMenuView(model: model) { [weak self] index in self?.execute(index) })
     /// Text area and `/query` range the menu currently targets.
-    private var target: (element: AXUIElement, range: NSRange)?
+    private var target: (element: AXUIElement, range: NSRange, cell: AXUIElement?)?
     /// Location of a `/` dismissed with Esc, so it is not reopened while typing after it.
     private var dismissedAt: Int?
+    private var anchor = NSPoint.zero
 
     /// Installs the key event tap. Requires the Accessibility permission.
     @discardableResult
@@ -49,6 +50,8 @@ final class SlashController {
             case Key.down: model.move(1); return nil
             case Key.up: model.move(-1); return nil
             case Key.return, Key.enter, Key.tab: execute(model.selected); return nil
+            case Key.right where model.items[model.selected].isGroup: open(model.selected); return nil
+            case Key.left where !model.parents.isEmpty: back(); return nil
             case Key.escape: dismissedAt = target?.range.location; hide(); return nil
             default: break
             }
@@ -75,24 +78,51 @@ final class SlashController {
             return
         }
         guard match.range.location != dismissedAt else { return }
-        // ponytail: first 10 matches only; add scrolling if template lists grow.
-        let items = Array(SlashCommand.all().filter { $0.matches(match.query) }.prefix(10))
+        let cell = NotesAX.tableCell(of: el)
+        let items: [SlashCommand]
+        if match.query.isEmpty {
+            // Keep the opened submenu while the query stays empty.
+            items = model.parents.isEmpty ? SlashCommand.tree(inTable: cell != nil) : model.items
+        } else {
+            model.parents = []
+            items = SlashCommand.tree(inTable: cell != nil).flatMap(\.leaves).filter { $0.matches(match.query) }
+        }
         guard !items.isEmpty else { hide(); return }
-        target = (el, match.range)
+        target = (el, match.range, cell)
+        if model.parents.isEmpty { model.selected = 0 }
         model.items = items
-        model.selected = 0
         let caret = NotesAX.caretRect(el, at: sel.location) ?? NSRect(origin: NSEvent.mouseLocation, size: .zero)
-        panel.show(topLeft: NSPoint(x: caret.minX, y: caret.minY - 4))
+        anchor = NSPoint(x: caret.minX, y: caret.minY - 4)
+        panel.show(topLeft: anchor)
+    }
+
+    private func open(_ index: Int) {
+        guard case .group(let children) = model.items[index].action else { return }
+        model.parents.append((model.items, index))
+        model.items = children
+        model.selected = 0
+        panel.show(topLeft: anchor)
+    }
+
+    private func back() {
+        guard let parent = model.parents.popLast() else { return }
+        model.items = parent.items
+        model.selected = parent.selected
+        panel.show(topLeft: anchor)
     }
 
     private func execute(_ index: Int) {
         guard let target, model.items.indices.contains(index) else { return }
         let command = model.items[index]
+        if command.isGroup { open(index); return }
         hide()
         // Remove the typed `/query`, then apply the command at that spot.
         NotesAX.setSelectedRange(target.element, target.range)
         NotesAX.insert(target.element, "")
         switch command.action {
+        case .group: break
+        case .table(let name):
+            if let cell = target.cell, AXUIElementPerformAction(cell, name as CFString) != .success { NSSound.beep() }
         case .menu(let menu, let titles):
             if !NotesAX.pressMenu(menu, titles) { NSSound.beep() }
         case .template(let url):
@@ -105,6 +135,7 @@ final class SlashController {
 
     private func hide() {
         target = nil
+        model.parents = []
         panel.orderOut(nil)
     }
 }
@@ -113,6 +144,8 @@ final class SlashController {
 final class SlashMenuModel {
     var items: [SlashCommand] = []
     var selected = 0
+    /// Levels above the open submenu, with the row that opened each.
+    var parents: [(items: [SlashCommand], selected: Int)] = []
 
     func move(_ delta: Int) {
         guard !items.isEmpty else { return }
@@ -125,19 +158,29 @@ struct SlashMenuView: View {
     let onPick: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(model.items.enumerated()), id: \.offset) { index, item in
-                HStack(spacing: 8) {
-                    Image(systemName: item.icon).frame(width: 18)
-                    Text(item.title)
-                    Spacer()
+        // ponytail: row height 28 is an estimate; the list scrolls past 10 rows.
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(model.items.enumerated()), id: \.offset) { index, item in
+                        if item.dividerBefore { Divider().padding(.vertical, 4) }
+                        HStack(spacing: 8) {
+                            Image(systemName: item.icon).frame(width: 18)
+                            Text(item.title)
+                            Spacer()
+                            if item.isGroup { Image(systemName: "chevron.right").foregroundStyle(.secondary) }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(index == model.selected ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                        .onTapGesture { onPick(index) }
+                        .id(index)
+                    }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(index == model.selected ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 6))
-                .contentShape(Rectangle())
-                .onTapGesture { onPick(index) }
             }
+            .frame(height: CGFloat(min(model.items.count, 10)) * 28 + CGFloat(model.items.prefix(10).filter(\.dividerBefore).count) * 9)
+            .onChange(of: model.selected) { _, new in proxy.scrollTo(new) }
         }
         .padding(6)
         .frame(width: 240)
