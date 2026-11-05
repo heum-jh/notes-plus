@@ -16,6 +16,9 @@ final class SlashController {
     /// Location of a `/` dismissed with Esc, so it is not reopened while typing after it.
     private var dismissedAt: Int?
     private var anchor = NSPoint.zero
+    /// A `/query` is being typed. Stays true while no command matches, so the menu can come back as the query changes
+    /// (Korean input passes through unmatched stages such as a lone "ㅇ" before it becomes "아이디어").
+    private var searching = false
     /// Command tree for the open menu; read from disk once per menu session, not on every keystroke.
     private var cachedTree: [SlashCommand]?
 
@@ -62,7 +65,7 @@ final class SlashController {
         // ponytail: reading the note via AX only on trigger keys or while the menu is open keeps typing cheap.
         let typed = NSEvent(cgEvent: event)?.characters ?? ""
         // Let Notes apply the key first, then read the updated text.
-        if slashOn && (panel.isVisible || typed == "/") {
+        if slashOn && (panel.isVisible || searching || typed == "/") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in self?.refresh() }
         } else if Settings.isOn(.markdown) && MarkdownShortcut.triggers.contains(typed) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { MarkdownShortcut.applyIfMatched() }
@@ -81,6 +84,7 @@ final class SlashController {
             return
         }
         guard match.range.location != dismissedAt else { return }
+        searching = true
         let cell = NotesAX.tableCell(of: el)
         // A click can move the caret without closing the menu; a different spot starts a fresh session.
         if let current = target, current.range.location != match.range.location || !CFEqual(current.element, el) {
@@ -98,7 +102,11 @@ final class SlashController {
             // Section dividers only make sense in the full list.
             items = tree.flatMap(\.leaves).filter { $0.matches(match.query) }.map { var row = $0; row.dividerBefore = false; return row }
         }
-        guard !items.isEmpty else { hide(); return }
+        guard !items.isEmpty else {
+            // No match (yet): hide the panel but keep listening to the query.
+            panel.orderOut(nil)
+            return
+        }
         target = (el, match.range, cell)
         if model.parents.isEmpty { model.selected = 0 }
         model.items = items
@@ -168,6 +176,7 @@ final class SlashController {
 
     func hide() {
         target = nil
+        searching = false
         cachedTree = nil
         model.parents = []
         panel.orderOut(nil)
