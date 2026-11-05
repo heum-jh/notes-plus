@@ -78,6 +78,10 @@ enum NotesAX {
         return rect.height > 0 ? cocoaRect(rect) : nil
     }
 
+    static func windows(_ pid: pid_t) -> [AXUIElement] {
+        copy(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
+    }
+
     /// Frame of the focused Notes window in Cocoa coordinates.
     static func focusedWindowFrame() -> NSRect? {
         guard let app = frontmostNotes,

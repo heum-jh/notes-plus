@@ -22,8 +22,11 @@ final class NotesObserver {
         observer = nil
         pid = app.processIdentifier
         var created: AXObserver?
-        let callback: AXObserverCallback = { _, _, _, refcon in
-            Unmanaged<NotesObserver>.fromOpaque(refcon!).takeUnretainedValue().scheduleChange()
+        let callback: AXObserverCallback = { _, _, name, refcon in
+            let me = Unmanaged<NotesObserver>.fromOpaque(refcon!).takeUnretainedValue()
+            let isWindowGeometry = name as String == kAXMovedNotification || name as String == kAXResizedNotification
+            if name as String == kAXFocusedWindowChangedNotification { me.watchWindows() }
+            me.scheduleChange(throttle: isWindowGeometry)
         }
         guard AXObserverCreate(pid, callback, &created) == .success, let created else { return }
         let appElement = AXUIElementCreateApplication(pid)
@@ -33,11 +36,31 @@ final class NotesObserver {
         }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(created), .defaultMode)
         observer = created
+        watchWindows()
     }
 
-    private func scheduleChange() {
+    /// Move/resize notifications fire on the window element, not the app, so every window is watched.
+    /// Re-adding an already watched window just returns an error, which is ignored.
+    private func watchWindows() {
+        guard let observer else { return }
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
+        let windows = NotesAX.windows(pid)
+        for window in windows {
+            for name in [kAXMovedNotification, kAXResizedNotification] {
+                AXObserverAddNotification(observer, window, name as CFString, refcon)
+            }
+        }
+    }
+
+    /// `throttle`: window drags fire continuously, so keep the pending update instead of resetting it,
+    /// which lets panels follow the window during the drag rather than only after it stops.
+    private func scheduleChange(throttle: Bool = false) {
+        if throttle, pending != nil { return }
         pending?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.onChange() }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pending = nil
+            self?.onChange()
+        }
         pending = work
         // Waits out drag-selection and rapid typing before touching AX again.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
