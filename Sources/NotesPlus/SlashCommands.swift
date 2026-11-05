@@ -6,7 +6,10 @@ struct SlashCommand {
         case menu([String], [String])
         case template(URL)
         /// Custom AX action of the table cell under the caret (names are Notes' own, English).
+        /// `|` separates alternative names; the first one the cell exposes is used.
         case table(String)
+        /// Text inserted at the caret, after `{{date}}`-style variables are filled in.
+        case text(String)
         /// Submenu opened with → (cascader); typing a query searches its leaves flat.
         case group([SlashCommand])
     }
@@ -51,10 +54,21 @@ struct SlashCommand {
         .init(title: "직접 요청", icon: "questionmark.square", keywords: "custom prompt ai 글쓰기 도구 longer 길게 chatgpt gpt", action: .menu(NotesAX.editMenu, ["글쓰기 도구 표시", "Show Writing Tools"])),
     ]
 
-    /// Row/column insertion already has ⌘⌥+arrow shortcuts in Notes; only deletion lacks one.
+    /// Notes has ⌘⌥+arrow shortcuts for adding rows/columns but none for deleting; the menu lists both.
     static let tableCommands: [SlashCommand] = [
+        // ponytail: add-row/column action names are best guesses; a miss is logged with the names the cell really exposes.
+        .init(title: "위에 행 추가", icon: "rectangle.badge.plus", keywords: "add row above insert 행 추가", action: .table("Add row above|Insert row above|Add Row Above")),
+        .init(title: "아래에 행 추가", icon: "rectangle.badge.plus", keywords: "add row below insert 행 추가", action: .table("Add row below|Insert row below|Add Row Below")),
+        .init(title: "왼쪽에 열 추가", icon: "rectangle.badge.plus", keywords: "add column left before insert 열 추가", action: .table("Add column before|Add column left|Insert column before|Add Column Before")),
+        .init(title: "오른쪽에 열 추가", icon: "rectangle.badge.plus", keywords: "add column right after insert 열 추가", action: .table("Add column after|Add column right|Insert column after|Add Column After")),
         .init(title: "행 삭제", icon: "rectangle.badge.minus", keywords: "delete row 삭제", action: .table("Delete rows")),
         .init(title: "열 삭제", icon: "rectangle.badge.minus", keywords: "delete column 삭제", action: .table("Delete columns")),
+    ]
+
+    static let insertions: [SlashCommand] = [
+        .init(title: "오늘 날짜", icon: "calendar", keywords: "date today 날짜", action: .text("{{date}}"), dividerBefore: true),
+        .init(title: "현재 시간", icon: "clock", keywords: "time now 시간", action: .text("{{time}}")),
+        .init(title: "날짜와 시간", icon: "calendar.badge.clock", keywords: "datetime 날짜 시간", action: .text("{{datetime}}")),
     ]
 
     static func tree(inTable: Bool = false) -> [SlashCommand] {
@@ -62,7 +76,7 @@ struct SlashCommand {
         var formats = formats
         // Separator between the table commands and the first format.
         if inTable { formats[0].dividerBefore = true }
-        return (inTable ? tableCommands : []) + formats
+        return (inTable ? tableCommands : []) + formats + insertions
             + [.init(title: "글쓰기 도구", icon: "wand.and.stars", keywords: "writing tools ai", action: .group(writingTools), dividerBefore: true)]
             + (templates.isEmpty ? [] : [.init(title: "템플릿", icon: "doc.text", keywords: "template", action: .group(templates), dividerBefore: true)])
     }
@@ -86,6 +100,22 @@ enum Templates {
         try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         try? "회의록\n참석자: \n안건: \n결정 사항: \n후속 작업: \n"
             .write(to: directory.appending(path: "회의록.md"), atomically: true, encoding: .utf8)
+    }
+
+    /// Fills `{{date}}`, `{{weekday}}`, `{{time}}` and `{{datetime}}` with the current moment.
+    static func render(_ text: String, now: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        func format(_ pattern: String) -> String {
+            formatter.dateFormat = pattern
+            return formatter.string(from: now)
+        }
+        return text
+            .replacingOccurrences(of: "{{datetime}}", with: format("yyyy년 M월 d일 a h:mm"))
+            .replacingOccurrences(of: "{{date}}", with: format("yyyy년 M월 d일"))
+            .replacingOccurrences(of: "{{weekday}}", with: format("EEEE"))
+            .replacingOccurrences(of: "{{time}}", with: format("a h:mm"))
     }
 
     /// Subfolders become submenus, `.md`/`.txt` files become templates.
@@ -143,6 +173,9 @@ enum SlashQuery {
         let tree = Templates.tree(at: dir)
         precondition(tree.map(\.title) == ["work", "top"], "tree = \(tree.map(\.title))")
         precondition(tree.flatMap(\.leaves).map(\.title) == ["inner", "top"])
+        let moment = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 5, hour: 15, minute: 5))!
+        precondition(Templates.render("{{date}} {{weekday}} {{time}}", now: moment) == "2026년 11월 5일 목요일 오후 3:05")
+        precondition(Templates.render("{{datetime}}|{{unknown}}", now: moment) == "2026년 11월 5일 오후 3:05|{{unknown}}")
         precondition(SlashCommand.tree().contains { $0.isGroup && $0.title == "글쓰기 도구" })
     }
 }

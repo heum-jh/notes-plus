@@ -7,10 +7,12 @@ enum MarkdownShortcut {
         case block(marker: NSRange, menu: [String])
         /// Inline `**text**` style markers around the text.
         case inline(open: NSRange, close: NSRange, menu: [String])
+        /// `[text](https://…)`, turned into a link by pasting it as Markdown.
+        case link(range: NSRange, markdown: String)
     }
 
     /// Keys after which the current line is checked.
-    static let triggers: Set<String> = [" ", "`", "*", "~", "="]
+    static let triggers: Set<String> = [" ", "`", "*", "~", "=", ")"]
 
     // Heading levels follow Notes' own Paste as Markdown: # Title, ## Heading, ### Subheading.
     private static let blocks: [(marker: String, menu: [String])] = [
@@ -25,6 +27,8 @@ enum MarkdownShortcut {
         ("> ", ["블록 인용", "Block Quote"]),
         ("```", ["모노 스타일", "Monostyled"]),
     ]
+
+    private static let link = try! NSRegularExpression(pattern: #"\[([^\[\]\n]+)\]\((https?://\S+)\)$"#)
 
     /// Inner text must not start or end with whitespace, so `2 * 3 * 4` stays plain.
     private static let inlines: [(regex: NSRegularExpression, marker: Int, menu: [String])] = [
@@ -47,6 +51,12 @@ enum MarkdownShortcut {
             return .block(marker: NSRange(location: lineStart, length: (line as NSString).length), menu: block.menu)
         }
         let lineRange = NSRange(location: 0, length: (line as NSString).length)
+        // A URL with an unclosed "(" (Wikipedia-style) is still being typed; wait for its real closing ")".
+        if let m = link.firstMatch(in: line, range: lineRange),
+           case let url = (line as NSString).substring(with: m.range(at: 2)), url.filter({ $0 == "(" }).count <= url.filter({ $0 == ")" }).count {
+            return .link(range: NSRange(location: lineStart + m.range.location, length: m.range.length),
+                         markdown: (line as NSString).substring(with: m.range))
+        }
         for rule in inlines {
             guard let m = rule.regex.firstMatch(in: line, range: lineRange) else { continue }
             let start = lineStart + m.range.location, end = lineStart + NSMaxRange(m.range)
@@ -65,6 +75,13 @@ enum MarkdownShortcut {
             NotesAX.setSelectedRange(el, marker)
             NotesAX.insert(el, "")
             if !NotesAX.pressMenu(NotesAX.formatMenu, menu) { NSSound.beep() }
+        case .link(let range, let markdown):
+            NotesAX.setSelectedRange(el, range)
+            if !NotesAX.paste(markdown, using: NotesAX.pasteMarkdownItem) {
+                NSSound.beep()
+                // Leave the typed text alone: drop the selection so the next key does not replace it.
+                NotesAX.setSelectedRange(el, NSRange(location: NSMaxRange(range), length: 0))
+            }
         case .inline(let open, let close, let menu):
             // Delete the closing marker first so the opening offsets stay valid.
             NotesAX.setSelectedRange(el, close)
@@ -91,5 +108,12 @@ enum MarkdownShortcut {
         precondition(detect("2 * 3 *", cursor: 7) == nil)
         precondition(detect("~~x~~", cursor: 5) != nil)
         precondition(detect("plain text ", cursor: 11) == nil)
+        let sample = "see [문서](https://a.com/x)"
+        let length = (sample as NSString).length
+        precondition(detect(sample, cursor: length) == .link(range: NSRange(location: 4, length: length - 4), markdown: "[문서](https://a.com/x)"))
+        precondition(detect("[문서](a.com)", cursor: ("[문서](a.com)" as NSString).length) == nil)
+        let wiki = "[위키](https://x.org/Foo_(bar)"
+        precondition(detect(wiki, cursor: (wiki as NSString).length) == nil)
+        precondition(detect(wiki + ")", cursor: (wiki as NSString).length + 1) != nil)
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import Sparkle
 
 if CommandLine.arguments.contains("--selftest") {
@@ -25,6 +26,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "NotesPlus \(version)", action: nil, keyEquivalent: "")
         menu.addItem(withTitle: "업데이트 확인…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "").target = updater
         menu.addItem(.separator())
+        for feature in Settings.Feature.allCases {
+            let item = menu.addItem(withTitle: feature.title, action: #selector(toggleFeature(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = feature
+            item.state = Settings.isOn(feature) ? .on : .off
+        }
+        let login = menu.addItem(withTitle: "로그인 시 자동 실행", action: #selector(toggleLogin(_:)), keyEquivalent: "")
+        login.target = self
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(.separator())
         menu.addItem(withTitle: "템플릿 폴더 열기", action: #selector(openTemplates), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "NotesPlus 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -49,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         slash.start()
         observer.onChange = { [weak self] in
             self?.formatBar.update()
-            self?.backlinks.update()
+            self?.backlinks.update(avoiding: self?.formatBar.visibleFrame)
         }
         observer.start()
     }
@@ -63,6 +74,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let set = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSSetConnectionProperty") else { return }
         let connection = unsafeBitCast(main, to: DefaultConnection.self)()
         _ = unsafeBitCast(set, to: SetProperty.self)(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
+    }
+
+    @objc private func toggleFeature(_ sender: NSMenuItem) {
+        guard let feature = sender.representedObject as? Settings.Feature else { return }
+        Settings.set(feature, !Settings.isOn(feature))
+        sender.state = Settings.isOn(feature) ? .on : .off
+        slash.hide()
+        observer.onChange()  // Panels of a feature that was just turned off close right away.
+    }
+
+    @objc private func toggleLogin(_ sender: NSMenuItem) {
+        do {
+            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() } else { try SMAppService.mainApp.register() }
+        } catch {
+            NSLog("NotesPlus: login item change failed: \(error)")
+            NSSound.beep()
+        }
+        // Registering can succeed yet wait for the user to approve it in System Settings.
+        if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+        sender.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
     @objc private func openTemplates() {

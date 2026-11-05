@@ -37,11 +37,17 @@ enum NotesAX {
         return nil
     }
 
-    /// The exact action name of `el` that contains `wanted`; custom actions may be exposed as "Name:Delete rows\nTarget:..".
+    /// The exact action name of `el` containing one of the `|`-separated alternatives in `wanted`;
+    /// custom actions may be exposed as "Name:Delete rows\nTarget:..". Logs what the element offers on a miss.
     static func actionName(_ el: AXUIElement, containing wanted: String) -> String? {
         var names: CFArray?
         guard AXUIElementCopyActionNames(el, &names) == .success else { return nil }
-        return (names as? [String])?.first { $0.contains(wanted) }
+        let available = names as? [String] ?? []
+        for candidate in wanted.split(separator: "|") {
+            if let hit = available.first(where: { $0.localizedCaseInsensitiveContains(candidate) }) { return hit }
+        }
+        NSLog("NotesPlus: no action matching \(wanted); available: \(available)")
+        return nil
     }
 
     private static func descendant(_ el: AXUIElement, _ role: String, depth: Int) -> AXUIElement? {
@@ -186,9 +192,12 @@ enum NotesAX {
         } ?? []
         pb.clearContents()
         pb.setString(text, forType: .string)
+        let ours = pb.changeCount
         let pressed = pressMenu(editMenu, item)
         // ponytail: fixed delay for Notes to read the clipboard; poll changeCount if pastes get dropped.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Something copied in the meantime wins over restoring the old contents.
+            guard pb.changeCount == ours else { return }
             pb.clearContents()
             if !saved.isEmpty { pb.writeObjects(saved) }
         }

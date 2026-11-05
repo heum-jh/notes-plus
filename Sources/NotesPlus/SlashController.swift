@@ -47,7 +47,8 @@ final class SlashController {
         }
         guard NotesAX.frontmostNotes != nil else { return Unmanaged.passUnretained(event) }
 
-        if panel.isVisible {
+        let slashOn = Settings.isOn(.slash)
+        if slashOn && panel.isVisible {
             switch event.getIntegerValueField(.keyboardEventKeycode) {
             case Key.down: model.move(1); return nil
             case Key.up: model.move(-1); return nil
@@ -61,11 +62,11 @@ final class SlashController {
         // ponytail: reading the note via AX only on trigger keys or while the menu is open keeps typing cheap.
         let typed = NSEvent(cgEvent: event)?.characters ?? ""
         // Let Notes apply the key first, then read the updated text.
-        if panel.isVisible || typed == "/" {
+        if slashOn && (panel.isVisible || typed == "/") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in self?.refresh() }
-        } else if MarkdownShortcut.triggers.contains(typed) {
+        } else if Settings.isOn(.markdown) && MarkdownShortcut.triggers.contains(typed) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { MarkdownShortcut.applyIfMatched() }
-        } else if typed == "[" {
+        } else if Settings.isOn(.backlinks) && typed == "[" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { Backlinks.convertWikiLinkTrigger() }
         }
         return Unmanaged.passUnretained(event)
@@ -137,7 +138,6 @@ final class SlashController {
         var tableAction: (cell: AXUIElement, name: String)?
         if case .table(let wanted) = command.action {
             guard let cell = target.cell, let name = NotesAX.actionName(cell, containing: wanted) else {
-                NSLog("NotesPlus: table action not found: \(wanted)")
                 NSSound.beep()
                 return
             }
@@ -149,19 +149,22 @@ final class SlashController {
         NotesAX.insert(target.element, "")
         switch command.action {
         case .group: break
+        case .text(let template):
+            NotesAX.insert(target.element, Templates.render(template))
         case .table:
             if let tableAction, AXUIElementPerformAction(tableAction.cell, tableAction.name as CFString) != .success { NSSound.beep() }
         case .menu(let menu, let titles):
             if !NotesAX.pressMenu(menu, titles) { NSSound.beep() }
         case .template(let url):
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else { NSSound.beep(); return }
+            guard let raw = try? String(contentsOf: url, encoding: .utf8) else { NSSound.beep(); return }
+            let text = Templates.render(raw)
             // Markdown templates keep headings and checklists; .txt is pasted as plain text.
             let item = url.pathExtension == "md" ? NotesAX.pasteMarkdownItem : NotesAX.pastePlainItem
             if !NotesAX.paste(text, using: item) { NSLog("NotesPlus: paste menu not found: \(item)"); NSSound.beep() }
         }
     }
 
-    private func hide() {
+    func hide() {
         target = nil
         cachedTree = nil
         model.parents = []

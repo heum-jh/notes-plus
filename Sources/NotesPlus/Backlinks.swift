@@ -16,7 +16,8 @@ final class Backlinks {
         }
     }
 
-    func update() {
+    func update(avoiding bar: NSRect? = nil) {
+        guard Settings.isOn(.backlinks) else { panel.orderOut(nil); lastIdentifier = nil; return }
         // No focused window (Notes in the background or minimized): nothing to anchor to.
         guard let window = NotesAX.focusedWindowFrame() else { panel.orderOut(nil); return }
         // Without a note id (caret in a table cell, sidebar focus) keep the current links but still follow the window.
@@ -35,6 +36,8 @@ final class Backlinks {
         }
         guard model.state != .empty else { panel.orderOut(nil); return }
         panel.show(bottomRight: NSPoint(x: window.maxX - 16, y: window.minY + 16))
+        // The format bar follows the caret, which can sit in this corner; move above it then.
+        if let bar, panel.frame.intersects(bar) { panel.setFrameOrigin(NSPoint(x: panel.frame.minX, y: bar.maxY + 6)) }
     }
 
     /// `[[` opens Notes' own note-link picker, which is triggered by typing `>>`.
@@ -52,6 +55,7 @@ enum NotesDB {
     struct Note: Equatable {
         let identifier: String
         let title: String
+        let snippet: String
     }
 
     enum Failure: Error {
@@ -68,7 +72,7 @@ enum NotesDB {
         defer { sqlite3_close(db) }
         guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return .failure(failure(db)) }
         let sql = """
-            SELECT DISTINCT note.ZIDENTIFIER, note.ZTITLE1
+            SELECT DISTINCT note.ZIDENTIFIER, note.ZTITLE1, note.ZSNIPPET
             FROM ZICCLOUDSYNCINGOBJECT AS link
             JOIN ZICCLOUDSYNCINGOBJECT AS note ON note.Z_PK = link.ZNOTE1
             WHERE link.ZTYPEUTI1 = 'com.apple.notes.inlinetextattachment.link'
@@ -76,6 +80,7 @@ enum NotesDB {
               AND note.ZIDENTIFIER != ?
               AND IFNULL(note.ZMARKEDFORDELETION, 0) != 1
             ORDER BY note.ZMODIFICATIONDATE1 DESC
+            LIMIT 50
             """
         var stmt: OpaquePointer?
         defer { sqlite3_finalize(stmt) }
@@ -87,7 +92,8 @@ enum NotesDB {
         while sqlite3_step(stmt) == SQLITE_ROW {
             guard let id = sqlite3_column_text(stmt, 0) else { continue }
             let title = sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? "제목 없음"
-            notes.append(Note(identifier: String(cString: id), title: title))
+            let snippet = sqlite3_column_text(stmt, 2).map { String(cString: $0) } ?? ""
+            notes.append(Note(identifier: String(cString: id), title: title, snippet: snippet))
         }
         return .success(notes)
     }
@@ -126,15 +132,25 @@ struct BacklinksView: View {
                 .buttonStyle(.link)
             case .notes(let notes):
                 Text("백링크 \(notes.count)").font(.caption).foregroundStyle(.secondary)
-                // ponytail: first 8 only; add scrolling for heavily linked notes.
-                ForEach(notes.prefix(8), id: \.identifier) { note in
-                    Button {
-                        NSWorkspace.shared.open(URL(string: "applenotes://showNote?identifier=\(note.identifier)")!)
-                    } label: {
-                        Label(note.title, systemImage: "arrow.uturn.backward").lineLimit(1)
+                // ponytail: newest 50; row height 38 is an estimate for the fixed list height.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(notes, id: \.identifier) { note in
+                            Button {
+                                NSWorkspace.shared.open(URL(string: "applenotes://showNote?identifier=\(note.identifier)")!)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Label(note.title, systemImage: "arrow.uturn.backward").lineLimit(1)
+                                    if !note.snippet.isEmpty {
+                                        Text(note.snippet).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.borderless)
+                        }
                     }
-                    .buttonStyle(.borderless)
                 }
+                .frame(height: min(CGFloat(notes.count) * 38, 228))
             }
         }
         .padding(10)

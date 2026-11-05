@@ -30,6 +30,11 @@ final class FormatBar {
         .init(icon: "checklist", help: "체크리스트", action: .menu(NotesAX.formatMenu, ["체크리스트", "Checklist"])),
         .init(icon: "apple.intelligence", help: "글쓰기 도구", action: .menu(NotesAX.editMenu, ["글쓰기 도구 표시", "Show Writing Tools"])),
         .init(icon: "link", help: "링크 추가", action: .menu(NotesAX.editMenu, ["링크 추가…", "Add Link…"])),
+        .init(icon: "highlighter", help: "강조", action: .menu(NotesAX.formatMenu, ["강조", "Highlight"])),
+        // ANSI key codes: [ = 33, ] = 30.
+        .init(icon: "increase.indent", help: "들여쓰기 (⌘])", action: .key(30, .maskCommand)),
+        .init(icon: "decrease.indent", help: "내어쓰기 (⌘[)", action: .key(33, .maskCommand)),
+        .init(icon: "eraser", help: "스타일 제거", action: .menu(NotesAX.formatMenu, ["스타일 제거", "Remove Style"])),
     ]
 
     private let model = FormatBarModel()
@@ -47,7 +52,11 @@ final class FormatBar {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.update() }
     })
 
+    /// Screen frame while the bar is showing, so other panels can stay clear of it.
+    var visibleFrame: NSRect? { panel.isVisible ? panel.frame : nil }
+
     func update() {
+        guard Settings.isOn(.formatBar) else { panel.orderOut(nil); return }
         guard let el = NotesAX.focusedTextArea(), let sel = NotesAX.selectedRange(el),
               let rect = sel.length > 0 ? NotesAX.bounds(el, sel) : NotesAX.caretRect(el, at: sel.location) else {
             panel.orderOut(nil)
