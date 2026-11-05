@@ -8,6 +8,7 @@ if CommandLine.arguments.contains("--selftest") {
     MarkdownShortcut.selfTest()
     FormatBar.selfTest()
     MenuEntry.selfTest()
+    Templates.selfTest()
     print("selftest ok")
     exit(0)
 }
@@ -97,7 +98,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.performClose(nil)
         switch entry {
         case .settings: openSettings()
-        case .templates: NSWorkspace.shared.open(Templates.directory)
         case .update: updater.checkForUpdates(nil)
         case .quit: NSApp.terminate(nil)
         default: break

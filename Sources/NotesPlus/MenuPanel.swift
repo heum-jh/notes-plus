@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Settings rows and menu bar panel rows. The panel only lists `panelEntries`; the switches live in the settings window.
 enum MenuEntry: String, CaseIterable, Identifiable {
-    case slash, markdown, formatBar, backlinks, login, settings, templates, update, quit
+    case slash, markdown, formatBar, backlinks, login, settings, update, quit
 
     var id: String { rawValue }
 
@@ -21,7 +21,6 @@ enum MenuEntry: String, CaseIterable, Identifiable {
         return switch self {
         case .login: "로그인 시 자동 실행"
         case .settings: "설정…"
-        case .templates: "템플릿 폴더 열기"
         case .update: "업데이트 확인…"
         default: "NotesPlus 종료"
         }
@@ -35,7 +34,6 @@ enum MenuEntry: String, CaseIterable, Identifiable {
         case .backlinks: "이 메모를 링크한 메모 보기"
         case .login: "Mac을 켤 때 함께 시작"
         case .settings: "기능 켜기·끄기, 서식 바 구성"
-        case .templates: "템플릿 파일을 추가하고 정리"
         case .update: "새 버전이 있는지 확인"
         case .quit: "NotesPlus를 종료합니다"
         }
@@ -49,7 +47,6 @@ enum MenuEntry: String, CaseIterable, Identifiable {
         case .backlinks: "arrow.uturn.backward.circle.fill"
         case .login: "power"
         case .settings: "gearshape.fill"
-        case .templates: "folder.fill"
         case .update: "arrow.triangle.2.circlepath"
         case .quit: "xmark"
         }
@@ -63,7 +60,6 @@ enum MenuEntry: String, CaseIterable, Identifiable {
         case .backlinks: .teal
         case .login: .green
         case .settings: .indigo
-        case .templates: .brown
         case .update: .cyan
         case .quit: .red
         }

@@ -3,12 +3,30 @@ import SwiftUI
 /// Settings window: sidebar of panes on the left, the selected pane on the right.
 struct SettingsView: View {
     private enum Pane: CaseIterable, Identifiable {
-        case general, bar
+        case general, templates, bar
 
         var id: Self { self }
-        var title: String { self == .general ? "일반" : "서식 바" }
-        var symbol: String { self == .general ? "gearshape.fill" : "textformat" }
-        var color: Color { self == .general ? .gray : .orange }
+        var title: String {
+            switch self {
+            case .general: "일반"
+            case .templates: "템플릿"
+            case .bar: "서식 바"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .general: "gearshape.fill"
+            case .templates: "doc.text.fill"
+            case .bar: "textformat"
+            }
+        }
+        var color: Color {
+            switch self {
+            case .general: .gray
+            case .templates: .brown
+            case .bar: .orange
+            }
+        }
     }
 
     let actions: MenuActions
@@ -22,12 +40,13 @@ struct SettingsView: View {
             Group {
                 switch pane {
                 case .general: GeneralSettings(actions: actions)
+                case .templates: TemplatesPane()
                 case .bar: BarSettingsView(onChange: onBarChange)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 720, height: 740)
+        .frame(width: 820, height: 740)
     }
 
     private var sidebar: some View {
@@ -118,9 +137,6 @@ private struct GeneralSettings: View {
                 }
                 card("시작") {
                     toggleRow(.login, Binding(get: { login }, set: { login = actions.setLogin($0) }))
-                }
-                card("템플릿") {
-                    settingRow(.templates) { Button("열기") { actions.run(.templates) } }
                 }
                 card("메뉴 막대 패널") {
                     HStack {
