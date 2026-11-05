@@ -66,7 +66,7 @@ final class SlashController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in self?.refresh() }
         } else if Settings.isOn(.markdown) && MarkdownShortcut.triggers.contains(typed) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { MarkdownShortcut.applyIfMatched() }
-        } else if Settings.isOn(.backlinks) && typed == "[" {
+        } else if Settings.isOn(.markdown) && typed == "[" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { Backlinks.convertWikiLinkTrigger() }
         }
         return Unmanaged.passUnretained(event)

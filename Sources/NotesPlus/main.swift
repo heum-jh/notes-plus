@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.formatBar.update()
             self?.backlinks.update(avoiding: self?.formatBar.visibleFrame)
         }
+        formatBar.onButtonPressed = { [weak self] in self?.observer.onChange() }
         observer.start()
     }
 

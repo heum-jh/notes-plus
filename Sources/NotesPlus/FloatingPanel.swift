@@ -27,10 +27,13 @@ final class FloatingPanel<Content: View>: NSPanel {
         orderFrontRegardless()
     }
 
-    func show(bottomRight point: NSPoint) {
+    /// Anchored at its bottom-right corner; moves above `bar` first if it would cover it.
+    func show(bottomRight point: NSPoint, avoiding bar: NSRect? = nil) {
         let size = hosting.fittingSize
         setContentSize(size)
-        setFrameOrigin(NSPoint(x: point.x - size.width, y: point.y))
+        var origin = NSPoint(x: point.x - size.width, y: point.y)
+        if let bar, NSRect(origin: origin, size: size).intersects(bar) { origin.y = bar.maxY + 6 }
+        setFrameOrigin(origin)
         orderFrontRegardless()
     }
 }

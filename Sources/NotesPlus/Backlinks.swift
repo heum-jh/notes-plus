@@ -20,9 +20,10 @@ final class Backlinks {
         guard Settings.isOn(.backlinks) else { panel.orderOut(nil); lastIdentifier = nil; return }
         // No focused window (Notes in the background or minimized): nothing to anchor to.
         guard let window = NotesAX.focusedWindowFrame() else { panel.orderOut(nil); return }
-        // Without a note id (caret in a table cell, sidebar focus) keep the current links but still follow the window.
-        let id = NotesAX.focusedTextArea().flatMap(NotesAX.noteIdentifier) ?? lastIdentifier
-        guard let id else { return }
+        // Focus outside a note body (sidebar, search): the links shown would belong to the wrong note.
+        guard let el = NotesAX.focusedTextArea() else { panel.orderOut(nil); lastIdentifier = nil; return }
+        // A table cell has no note id; keep the current links but still follow the window.
+        guard let id = NotesAX.noteIdentifier(el) ?? lastIdentifier else { return }
         // ponytail: re-queried when switching notes or returning to Notes; links added meanwhile show up then.
         if id != lastIdentifier {
             lastIdentifier = id
@@ -35,9 +36,8 @@ final class Backlinks {
             }
         }
         guard model.state != .empty else { panel.orderOut(nil); return }
-        panel.show(bottomRight: NSPoint(x: window.maxX - 16, y: window.minY + 16))
-        // The format bar follows the caret, which can sit in this corner; move above it then.
-        if let bar, panel.frame.intersects(bar) { panel.setFrameOrigin(NSPoint(x: panel.frame.minX, y: bar.maxY + 6)) }
+        // The format bar follows the caret, which can sit in this corner; the panel then goes above it.
+        panel.show(bottomRight: NSPoint(x: window.maxX - 16, y: window.minY + 16), avoiding: bar)
     }
 
     /// `[[` opens Notes' own note-link picker, which is triggered by typing `>>`.
@@ -132,7 +132,7 @@ struct BacklinksView: View {
                 .buttonStyle(.link)
             case .notes(let notes):
                 Text("백링크 \(notes.count)").font(.caption).foregroundStyle(.secondary)
-                // ponytail: newest 50; row height 38 is an estimate for the fixed list height.
+                // ponytail: newest 50; row heights (22 plain, 36 with snippet) are estimates for the fixed list height.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(notes, id: \.identifier) { note in
@@ -150,7 +150,7 @@ struct BacklinksView: View {
                         }
                     }
                 }
-                .frame(height: min(CGFloat(notes.count) * 38, 228))
+                .frame(height: min(notes.reduce(CGFloat(0)) { $0 + ($1.snippet.isEmpty ? 22 : 36) }, 228))
             }
         }
         .padding(10)

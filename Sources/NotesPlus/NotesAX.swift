@@ -176,6 +176,7 @@ enum NotesAX {
         return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
     }
 
+    static let dividerItem = ["분리자 선 삽입", "Insert Divider Line", "Insert Divider"]
     static let pasteMarkdownItem = ["Markdown으로 붙여넣기", "Paste as Markdown"]
     static let pastePlainItem = ["붙여넣고 스타일 일치", "Paste and Match Style"]
 

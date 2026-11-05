@@ -66,7 +66,8 @@ struct SlashCommand {
     ]
 
     static let insertions: [SlashCommand] = [
-        .init(title: "오늘 날짜", icon: "calendar", keywords: "date today 날짜", action: .text("{{date}}"), dividerBefore: true),
+        .init(title: "구분선", icon: "minus", keywords: "divider line hr separator 분리자", action: .menu(NotesAX.editMenu, NotesAX.dividerItem), dividerBefore: true),
+        .init(title: "오늘 날짜", icon: "calendar", keywords: "date today 날짜", action: .text("{{date}}")),
         .init(title: "현재 시간", icon: "clock", keywords: "time now 시간", action: .text("{{time}}")),
         .init(title: "날짜와 시간", icon: "calendar.badge.clock", keywords: "datetime 날짜 시간", action: .text("{{datetime}}")),
     ]

@@ -37,6 +37,9 @@ final class FormatBar {
         .init(icon: "eraser", help: "스타일 제거", action: .menu(NotesAX.formatMenu, ["스타일 제거", "Remove Style"])),
     ]
 
+    /// Runs after a button press settles; the app uses it to refresh every panel, not just this one.
+    var onButtonPressed: () -> Void = {}
+
     private let model = FormatBarModel()
 
     private lazy var panel = FloatingPanel(FormatBarView(model: model) { [weak self] button in
@@ -49,7 +52,7 @@ final class FormatBar {
         if ["bold", "italic", "underline", "strikethrough"].contains(button.icon) {
             self?.model.active.formSymmetricDifference([button.icon])
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.update() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.onButtonPressed() }
     })
 
     /// Screen frame while the bar is showing, so other panels can stay clear of it.

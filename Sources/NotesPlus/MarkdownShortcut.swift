@@ -6,13 +6,15 @@ enum MarkdownShortcut {
         /// Line-start marker such as `## `, replaced by a paragraph style.
         case block(marker: NSRange, menu: [String])
         /// Inline `**text**` style markers around the text.
+        /// A line of just `---`, replaced by a divider line.
+        case divider(marker: NSRange)
         case inline(open: NSRange, close: NSRange, menu: [String])
         /// `[text](https://…)`, turned into a link by pasting it as Markdown.
         case link(range: NSRange, markdown: String)
     }
 
     /// Keys after which the current line is checked.
-    static let triggers: Set<String> = [" ", "`", "*", "~", "=", ")"]
+    static let triggers: Set<String> = [" ", "`", "*", "~", "=", ")", "-"]
 
     // Heading levels follow Notes' own Paste as Markdown: # Title, ## Heading, ### Subheading.
     private static let blocks: [(marker: String, menu: [String])] = [
@@ -50,6 +52,7 @@ enum MarkdownShortcut {
         if let block = blocks.first(where: { $0.marker == line }) {
             return .block(marker: NSRange(location: lineStart, length: (line as NSString).length), menu: block.menu)
         }
+        if line == "---" { return .divider(marker: NSRange(location: lineStart, length: 3)) }
         let lineRange = NSRange(location: 0, length: (line as NSString).length)
         // A URL with an unclosed "(" (Wikipedia-style) is still being typed; wait for its real closing ")".
         if let m = link.firstMatch(in: line, range: lineRange),
@@ -75,6 +78,10 @@ enum MarkdownShortcut {
             NotesAX.setSelectedRange(el, marker)
             NotesAX.insert(el, "")
             if !NotesAX.pressMenu(NotesAX.formatMenu, menu) { NSSound.beep() }
+        case .divider(let marker):
+            NotesAX.setSelectedRange(el, marker)
+            NotesAX.insert(el, "")
+            if !NotesAX.pressMenu(NotesAX.editMenu, NotesAX.dividerItem) { NSSound.beep() }
         case .link(let range, let markdown):
             NotesAX.setSelectedRange(el, range)
             if !NotesAX.paste(markdown, using: NotesAX.pasteMarkdownItem) {
@@ -108,6 +115,9 @@ enum MarkdownShortcut {
         precondition(detect("2 * 3 *", cursor: 7) == nil)
         precondition(detect("~~x~~", cursor: 5) != nil)
         precondition(detect("plain text ", cursor: 11) == nil)
+        precondition(detect("---", cursor: 3) == .divider(marker: NSRange(location: 0, length: 3)))
+        precondition(detect("a\n---", cursor: 5) == .divider(marker: NSRange(location: 2, length: 3)))
+        precondition(detect("----", cursor: 4) == nil && detect("x---", cursor: 4) == nil && detect("--", cursor: 2) == nil)
         let sample = "see [문서](https://a.com/x)"
         let length = (sample as NSString).length
         precondition(detect(sample, cursor: length) == .link(range: NSRange(location: 4, length: length - 4), markdown: "[문서](https://a.com/x)"))
