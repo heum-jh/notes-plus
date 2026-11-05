@@ -21,9 +21,27 @@ enum NotesAX {
     /// Notes reports no focused element while the caret is in a table cell, so the table's selected cell stands in.
     /// ponytail: walks the window tree, only reached when nothing is focused; cache the table if typing there gets slow.
     private static func tableCellTextArea(in axApp: AXUIElement) -> AXUIElement? {
-        guard let window = element(axApp, kAXFocusedWindowAttribute), let table = descendant(window, "AXTable", depth: 0),
-              let cell = (copy(table, "AXSelectedCells") as? [AXUIElement])?.first else { return nil }
+        guard let window = element(axApp, kAXFocusedWindowAttribute),
+              let cell = selectedCell(in: window, depth: 0) else { return nil }
         return descendant(cell, kAXTextAreaRole, depth: 0)
+    }
+
+    /// First selected cell of any table in the window; a note can hold several tables, and the sidebar list is a table too.
+    private static func selectedCell(in el: AXUIElement, depth: Int) -> AXUIElement? {
+        if copy(el, kAXRoleAttribute) as? String == "AXTable" {
+            // Only a cell holding a note text area counts, so a list's selected row is never mistaken for a caret cell.
+            return (copy(el, "AXSelectedCells") as? [AXUIElement])?.first { descendant($0, kAXTextAreaRole, depth: 0) != nil }
+        }
+        guard depth < 12 else { return nil }
+        for child in children(el) { if let hit = selectedCell(in: child, depth: depth + 1) { return hit } }
+        return nil
+    }
+
+    /// The exact action name of `el` that contains `wanted`; custom actions may be exposed as "Name:Delete rows\nTarget:..".
+    static func actionName(_ el: AXUIElement, containing wanted: String) -> String? {
+        var names: CFArray?
+        guard AXUIElementCopyActionNames(el, &names) == .success else { return nil }
+        return (names as? [String])?.first { $0.contains(wanted) }
     }
 
     private static func descendant(_ el: AXUIElement, _ role: String, depth: Int) -> AXUIElement? {

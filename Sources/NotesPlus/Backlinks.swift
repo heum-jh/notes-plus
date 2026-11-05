@@ -9,12 +9,20 @@ final class Backlinks {
     private lazy var panel = FloatingPanel(BacklinksView(model: model))
     private var lastIdentifier: String?
 
-    func update() {
-        guard let el = NotesAX.focusedTextArea(), let id = NotesAX.noteIdentifier(el), let window = NotesAX.focusedWindowFrame() else {
-            if NotesAX.frontmostNotes == nil { panel.orderOut(nil) }
-            return
+    init() {
+        // Links added from other notes while Notes was in the background show up when returning to it.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.lastIdentifier = nil
         }
-        // ponytail: re-queried only when switching notes; links added to other notes show up on the next switch.
+    }
+
+    func update() {
+        // No focused window (Notes in the background or minimized): nothing to anchor to.
+        guard let window = NotesAX.focusedWindowFrame() else { panel.orderOut(nil); return }
+        // Without a note id (caret in a table cell, sidebar focus) keep the current links but still follow the window.
+        let id = NotesAX.focusedTextArea().flatMap(NotesAX.noteIdentifier) ?? lastIdentifier
+        guard let id else { return }
+        // ponytail: re-queried when switching notes or returning to Notes; links added meanwhile show up then.
         if id != lastIdentifier {
             lastIdentifier = id
             switch NotesDB.backlinks(to: id) {

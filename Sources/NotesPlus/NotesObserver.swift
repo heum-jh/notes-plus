@@ -25,13 +25,13 @@ final class NotesObserver {
         let callback: AXObserverCallback = { _, _, name, refcon in
             let me = Unmanaged<NotesObserver>.fromOpaque(refcon!).takeUnretainedValue()
             let isWindowGeometry = name as String == kAXMovedNotification || name as String == kAXResizedNotification
-            if name as String == kAXFocusedWindowChangedNotification { me.watchWindows() }
+            if name as String == kAXFocusedWindowChangedNotification || name as String == kAXWindowCreatedNotification { me.watchWindows() }
             me.scheduleChange(throttle: isWindowGeometry)
         }
         guard AXObserverCreate(pid, callback, &created) == .success, let created else { return }
         let appElement = AXUIElementCreateApplication(pid)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        for name in [kAXSelectedTextChangedNotification, kAXFocusedUIElementChangedNotification, kAXFocusedWindowChangedNotification] {
+        for name in [kAXSelectedTextChangedNotification, kAXFocusedUIElementChangedNotification, kAXFocusedWindowChangedNotification, kAXWindowCreatedNotification] {
             AXObserverAddNotification(created, appElement, name as CFString, refcon)
         }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(created), .defaultMode)

@@ -130,5 +130,19 @@ enum SlashQuery {
         check("a/b", 3, nil)
         check("/he llo", 7, nil)
         check("", 0, nil)
+
+        // Templates: folders become submenus, empty folders and other file types are skipped, search sees only leaves.
+        let dir = FileManager.default.temporaryDirectory.appending(path: "notesplus-selftest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fm = FileManager.default
+        try! fm.createDirectory(at: dir.appending(path: "work"), withIntermediateDirectories: true)
+        try! fm.createDirectory(at: dir.appending(path: "empty"), withIntermediateDirectories: true)
+        try! "a".write(to: dir.appending(path: "top.md"), atomically: true, encoding: .utf8)
+        try! "b".write(to: dir.appending(path: "work/inner.txt"), atomically: true, encoding: .utf8)
+        try! "c".write(to: dir.appending(path: "ignored.png"), atomically: true, encoding: .utf8)
+        let tree = Templates.tree(at: dir)
+        precondition(tree.map(\.title) == ["work", "top"], "tree = \(tree.map(\.title))")
+        precondition(tree.flatMap(\.leaves).map(\.title) == ["inner", "top"])
+        precondition(SlashCommand.tree().contains { $0.isGroup && $0.title == "글쓰기 도구" })
     }
 }

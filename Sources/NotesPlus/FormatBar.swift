@@ -35,7 +35,6 @@ final class FormatBar {
     private let model = FormatBarModel()
 
     private lazy var panel = FloatingPanel(FormatBarView(model: model) { [weak self] button in
-        Self.log("before \(button.help)")
         switch button.action {
         case .key(let code, let flags): NotesAX.pressKey(code, flags)
         case .menu(let menu, let titles): if !NotesAX.pressMenu(menu, titles) { NSSound.beep() }
@@ -45,7 +44,7 @@ final class FormatBar {
         if ["bold", "italic", "underline", "strikethrough"].contains(button.icon) {
             self?.model.active.formSymmetricDifference([button.icon])
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { Self.log("after \(button.help)"); self?.update() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.update() }
     })
 
     func update() {
@@ -68,14 +67,6 @@ final class FormatBar {
             attributes[.init("AXStrikethrough")] as? Int == 1 ? "strikethrough" : nil,
         ].compactMap { $0 })
         panel.show(bottomLeft: NSPoint(x: rect.minX, y: rect.maxY + 6))
-    }
-
-    // ponytail: temporary trace for the italic/underline report; remove once reproduced.
-    private static func log(_ label: String) {
-        guard let el = NotesAX.focusedTextArea(), let sel = NotesAX.selectedRange(el) else { NSLog("NotesPlus: \(label) no text area"); return }
-        let a = NotesAX.attributes(el, at: sel.location)
-        let font = (a[.init("AXFont")] as? [String: Any])?["AXFontName"] ?? "-"
-        NSLog("NotesPlus: \(label) front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "-") sel=\(sel) font=\(font) underline=\(a[.init("AXUnderline")] ?? "-")")
     }
 
     /// Notes 27 never removes an underline: ⌘U and the menu item only add it.

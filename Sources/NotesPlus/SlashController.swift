@@ -16,6 +16,8 @@ final class SlashController {
     /// Location of a `/` dismissed with Esc, so it is not reopened while typing after it.
     private var dismissedAt: Int?
     private var anchor = NSPoint.zero
+    /// Command tree for the open menu; read from disk once per menu session, not on every keystroke.
+    private var cachedTree: [SlashCommand]?
 
     /// Installs the key event tap. Requires the Accessibility permission.
     @discardableResult
@@ -50,7 +52,7 @@ final class SlashController {
             case Key.down: model.move(1); return nil
             case Key.up: model.move(-1); return nil
             case Key.return, Key.enter, Key.tab: execute(model.selected); return nil
-            case Key.right where model.items[model.selected].isGroup: open(model.selected); return nil
+            case Key.right where model.items.indices.contains(model.selected) && model.items[model.selected].isGroup: open(model.selected); return nil
             case Key.left where !model.parents.isEmpty: back(); return nil
             case Key.escape: dismissedAt = target?.range.location; hide(); return nil
             default: break
@@ -79,13 +81,21 @@ final class SlashController {
         }
         guard match.range.location != dismissedAt else { return }
         let cell = NotesAX.tableCell(of: el)
+        // A click can move the caret without closing the menu; a different spot starts a fresh session.
+        if let current = target, current.range.location != match.range.location || !CFEqual(current.element, el) {
+            cachedTree = nil
+            model.parents = []
+        }
+        let tree = cachedTree ?? SlashCommand.tree(inTable: cell != nil)
+        cachedTree = tree
         let items: [SlashCommand]
         if match.query.isEmpty {
             // Keep the opened submenu while the query stays empty.
-            items = model.parents.isEmpty ? SlashCommand.tree(inTable: cell != nil) : model.items
+            items = model.parents.isEmpty ? tree : model.items
         } else {
             model.parents = []
-            items = SlashCommand.tree(inTable: cell != nil).flatMap(\.leaves).filter { $0.matches(match.query) }
+            // Section dividers only make sense in the full list.
+            items = tree.flatMap(\.leaves).filter { $0.matches(match.query) }.map { var row = $0; row.dividerBefore = false; return row }
         }
         guard !items.isEmpty else { hide(); return }
         target = (el, match.range, cell)
@@ -93,7 +103,7 @@ final class SlashController {
         model.items = items
         let caret = NotesAX.caretRect(el, at: sel.location) ?? NSRect(origin: NSEvent.mouseLocation, size: .zero)
         anchor = NSPoint(x: caret.minX, y: caret.minY - 4)
-        panel.show(topLeft: anchor)
+        if panel.isVisible { reposition() } else { panel.show(topLeft: anchor) }
     }
 
     private func open(_ index: Int) {
@@ -101,28 +111,46 @@ final class SlashController {
         model.parents.append((model.items, index))
         model.items = children
         model.selected = 0
-        panel.show(topLeft: anchor)
+        reposition()
     }
 
     private func back() {
         guard let parent = model.parents.popLast() else { return }
         model.items = parent.items
         model.selected = parent.selected
-        panel.show(topLeft: anchor)
+        reposition()
+    }
+
+    /// Resizes after SwiftUI has applied the new rows; `fittingSize` is stale right after `model.items` changes.
+    private func reposition() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, panel.isVisible else { return }
+            panel.show(topLeft: anchor)
+        }
     }
 
     private func execute(_ index: Int) {
         guard let target, model.items.indices.contains(index) else { return }
         let command = model.items[index]
         if command.isGroup { open(index); return }
+        // Resolve a table action before deleting `/query`, so a missing action costs nothing.
+        var tableAction: (cell: AXUIElement, name: String)?
+        if case .table(let wanted) = command.action {
+            guard let cell = target.cell, let name = NotesAX.actionName(cell, containing: wanted) else {
+                NSLog("NotesPlus: table action not found: \(wanted)")
+                NSSound.beep()
+                return
+            }
+            tableAction = (cell, name)
+        }
         hide()
         // Remove the typed `/query`, then apply the command at that spot.
         NotesAX.setSelectedRange(target.element, target.range)
         NotesAX.insert(target.element, "")
         switch command.action {
         case .group: break
-        case .table(let name):
-            if let cell = target.cell, AXUIElementPerformAction(cell, name as CFString) != .success { NSSound.beep() }
+        case .table:
+            if let tableAction, AXUIElementPerformAction(tableAction.cell, tableAction.name as CFString) != .success { NSSound.beep() }
         case .menu(let menu, let titles):
             if !NotesAX.pressMenu(menu, titles) { NSSound.beep() }
         case .template(let url):
@@ -135,6 +163,7 @@ final class SlashController {
 
     private func hide() {
         target = nil
+        cachedTree = nil
         model.parents = []
         panel.orderOut(nil)
     }
