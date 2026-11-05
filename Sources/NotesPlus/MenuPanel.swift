@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Every row of the menu bar panel. All of them can be reordered by dragging.
+/// Settings rows and menu bar panel rows. The panel only lists `panelEntries`; the switches live in the settings window.
 enum MenuEntry: String, CaseIterable, Identifiable {
     case slash, markdown, formatBar, backlinks, login, settings, templates, update, quit
 
@@ -69,18 +69,23 @@ enum MenuEntry: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Rows of the menu bar panel, which can be reordered by dragging.
+    static let panelEntries: [MenuEntry] = [.settings, .templates, .update, .quit]
+
     /// Saved order made complete: unknown or repeated rows dropped, rows added since the order was saved appended.
     static func ordered(_ saved: [String]) -> [MenuEntry] {
         var seen = Set<MenuEntry>()
         // "barSettings" is the pre-0.1.3 name of the settings row.
-        let known = saved.map { $0 == "barSettings" ? "settings" : $0 }.compactMap(MenuEntry.init(rawValue:)).filter { seen.insert($0).inserted }
-        return known + allCases.filter { !seen.contains($0) }
+        let known = saved.map { $0 == "barSettings" ? "settings" : $0 }.compactMap(MenuEntry.init(rawValue:))
+            .filter { panelEntries.contains($0) && seen.insert($0).inserted }
+        return known + panelEntries.filter { !seen.contains($0) }
     }
 
     static func selfTest() {
-        precondition(ordered([]) == allCases)
-        precondition(ordered(["quit", "nope", "slash", "quit"]).prefix(2) == [.quit, .slash])
-        precondition(ordered(["quit"]).count == allCases.count)
+        precondition(ordered([]) == panelEntries)
+        // Rows that moved to the settings window (old saved orders include them) are dropped.
+        precondition(ordered(["quit", "nope", "slash", "quit", "update"]) == [.quit, .update, .settings, .templates])
+        precondition(ordered(["quit"]).count == panelEntries.count)
         precondition(ordered(["barSettings"]).first == .settings)
     }
 }
@@ -95,19 +100,17 @@ struct MenuActions {
 }
 
 struct MenuPanelView: View {
-    static let size = NSSize(width: 320, height: 540)
+    static let size = NSSize(width: 320, height: 310)
 
     let actions: MenuActions
     @State private var order = MenuEntry.ordered(Settings.menuOrder)
-    @State private var features = Dictionary(uniqueKeysWithValues: Settings.Feature.allCases.map { ($0, Settings.isOn($0)) })
-    @State private var login = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
             List {
                 ForEach(order) { entry in
-                    MenuRow(entry: entry, isOn: binding(for: entry)) { actions.run(entry) }
+                    MenuRow(entry: entry) { actions.run(entry) }
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
@@ -122,7 +125,6 @@ struct MenuPanelView: View {
                 .padding(.vertical, 8)
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .onAppear { login = actions.loginEnabled() }
     }
 
     private var header: some View {
@@ -141,22 +143,10 @@ struct MenuPanelView: View {
         .padding(.vertical, 14)
         .background(LinearGradient(colors: [Color.accentColor.opacity(0.18), .clear], startPoint: .top, endPoint: .bottom))
     }
-
-    /// Switch rows get a binding; plain action rows get nil.
-    private func binding(for entry: MenuEntry) -> Binding<Bool>? {
-        if let feature = entry.feature {
-            return Binding(get: { features[feature] ?? true }, set: { features[feature] = $0; actions.setFeature(feature, $0) })
-        }
-        if entry == .login {
-            return Binding(get: { login }, set: { login = actions.setLogin($0) })
-        }
-        return nil
-    }
 }
 
 private struct MenuRow: View {
     let entry: MenuEntry
-    let isOn: Binding<Bool>?
     let action: () -> Void
     @State private var hovering = false
 
@@ -178,20 +168,14 @@ private struct MenuRow: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .opacity(hovering ? 1 : 0)
-            if let isOn {
-                Toggle("", isOn: isOn).toggleStyle(.switch).controlSize(.small).labelsHidden()
-            } else {
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-            }
+            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(hovering ? 0.08 : 0)))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .onTapGesture {
-            if let isOn { isOn.wrappedValue.toggle() } else { action() }
-        }
+        .onTapGesture(perform: action)
         .animation(.snappy(duration: 0.18), value: hovering)
     }
 }
