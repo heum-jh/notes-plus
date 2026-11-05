@@ -168,6 +168,8 @@ final class FormatBarModel {
     var active: Set<String> = []
     var hidden: Set<String> = []
     var layout: [String] = []
+    /// Set by the settings window while the pointer is over a row, to point out that button.
+    var highlighted: String?
 }
 
 struct FormatBarView: View {
@@ -182,7 +184,7 @@ struct FormatBarView: View {
                         Image(systemName: button.icon)
                             .frame(width: 26, height: 24)
                             .foregroundStyle(model.active.contains(button.icon) ? Color.accentColor : .primary)
-                            .background(model.active.contains(button.icon) ? Color.accentColor.opacity(0.2) : .clear,
+                            .background(model.active.contains(button.icon) ? Color.accentColor.opacity(0.2) : model.highlighted == button.icon ? Color.primary.opacity(0.18) : .clear,
                                         in: RoundedRectangle(cornerRadius: 5))
                             .overlay(alignment: .bottom) {
                                 if case .menu(_, let titles) = button.action, titles.first == "색상 보기", let color = model.color {
