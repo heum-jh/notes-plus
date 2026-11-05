@@ -1,10 +1,12 @@
 import AppKit
 import ServiceManagement
+import SwiftUI
 import Sparkle
 
 if CommandLine.arguments.contains("--selftest") {
     SlashQuery.selfTest()
     MarkdownShortcut.selfTest()
+    FormatBar.selfTest()
     print("selftest ok")
     exit(0)
 }
@@ -16,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let formatBar = FormatBar()
     private let backlinks = Backlinks()
     private var permissionTimer: Timer?
+    private var barSettingsWindow: NSWindow?
     // Checks the appcast daily (SUEnableAutomaticChecks in Info.plist) and offers to install new releases.
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -32,27 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.representedObject = feature
             item.state = Settings.isOn(feature) ? .on : .off
         }
-        // Tags: 1 = show/hide row, 2 = separator-after row (reset needs to tell them apart).
-        let barMenu = NSMenu()
-        barMenu.addItem(.sectionHeader(title: "표시"))
-        for button in FormatBar.buttons {
-            let item = barMenu.addItem(withTitle: button.help, action: #selector(toggleBarItem(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = 1
-            item.representedObject = button.icon
-            item.state = Settings.hiddenBarItems.contains(button.icon) ? .off : .on
-        }
-        barMenu.addItem(.sectionHeader(title: "뒤에 구분선"))
-        for button in FormatBar.buttons {
-            let item = barMenu.addItem(withTitle: "\(button.help) 뒤", action: #selector(toggleBarDivider(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = 2
-            item.representedObject = button.icon
-            item.state = Settings.dividerAfter.contains(button.icon) ? .on : .off
-        }
-        barMenu.addItem(.separator())
-        barMenu.addItem(withTitle: "기본값으로", action: #selector(resetBarItems), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "서식 바 항목", action: nil, keyEquivalent: "").submenu = barMenu
+        menu.addItem(withTitle: "서식 바 설정…", action: #selector(openBarSettings), keyEquivalent: "").target = self
         let login = menu.addItem(withTitle: "로그인 시 자동 실행", action: #selector(toggleLogin(_:)), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -106,36 +89,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observer.onChange()  // Panels of a feature that was just turned off close right away.
     }
 
-    @objc private func toggleBarItem(_ sender: NSMenuItem) {
-        guard let icon = sender.representedObject as? String else { return }
-        var hidden = Settings.hiddenBarItems
-        if hidden.contains(icon) {
-            hidden.remove(icon)
-        } else if hidden.count + 1 < FormatBar.buttons.count {
-            hidden.insert(icon)
-        } else {
-            NSSound.beep()  // An empty bar would be a stray blank pill; turn the whole bar off from the main menu instead.
-            return
-        }
-        Settings.hiddenBarItems = hidden
-        sender.state = hidden.contains(icon) ? .off : .on
-        observer.onChange()
-    }
-
-    @objc private func toggleBarDivider(_ sender: NSMenuItem) {
-        guard let icon = sender.representedObject as? String else { return }
-        var dividers = Settings.dividerAfter
-        if dividers.contains(icon) { dividers.remove(icon) } else { dividers.insert(icon) }
-        Settings.dividerAfter = dividers
-        sender.state = dividers.contains(icon) ? .on : .off
-        observer.onChange()
-    }
-
-    @objc private func resetBarItems(_ sender: NSMenuItem) {
-        Settings.hiddenBarItems = []
-        Settings.dividerAfter = []
-        sender.menu?.items.forEach { $0.state = $0.tag == 1 ? .on : .off }
-        observer.onChange()
+    @objc private func openBarSettings() {
+        let view = BarSettingsView { [weak self] in self?.observer.onChange() }
+        let window = barSettingsWindow ?? NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = "서식 바 설정"
+        window.contentViewController = NSHostingController(rootView: view)
+        window.isReleasedWhenClosed = false
+        window.center()
+        barSettingsWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     @objc private func toggleLogin(_ sender: NSMenuItem) {

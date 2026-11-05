@@ -42,6 +42,49 @@ final class FormatBar {
         .init(icon: "text.alignright", help: "오른쪽 정렬", action: .menu(NotesAX.formatMenu, ["오른쪽 정렬", "Align Right"])),
     ]
 
+    static let separatorKey = "|"
+
+    struct BarItem: Identifiable {
+        let id: Int
+        /// nil for a separator line.
+        let button: Button?
+    }
+
+    /// Saved order made complete: unknown or repeated buttons dropped, buttons added since the layout was saved appended.
+    static func order(_ layout: [String]) -> [String] {
+        let known = Set(buttons.map(\.icon))
+        var seen = Set<String>()
+        var result = layout.filter { $0 == separatorKey || (known.contains($0) && seen.insert($0).inserted) }
+        result += buttons.map(\.icon).filter { !seen.contains($0) }
+        return result
+    }
+
+    /// What the bar draws: hidden buttons removed, and separators collapsed so none leads, trails or doubles up.
+    static func items(layout: [String], hidden: Set<String>) -> [BarItem] {
+        var keys: [String] = []
+        for key in order(layout) where !hidden.contains(key) {
+            if key == separatorKey, keys.isEmpty || keys.last == separatorKey { continue }
+            keys.append(key)
+        }
+        if keys.last == separatorKey { keys.removeLast() }
+        return keys.enumerated().map { index, key in BarItem(id: index, button: buttons.first { $0.icon == key }) }
+    }
+
+    static func selfTest() {
+        func keys(_ layout: [String], _ hidden: Set<String> = []) -> [String] {
+            items(layout: layout, hidden: hidden).map { $0.button?.icon ?? separatorKey }
+        }
+        let all = buttons.map(\.icon)
+        precondition(keys([]) == all)
+        precondition(Array(keys(["italic", "|", "bold"]).prefix(3)) == ["italic", "|", "bold"])
+        precondition(keys(["|", "bold", "|", "|", "italic", "|"]).prefix(3) == ["bold", "|", "italic"])
+        let onlyBoldItalic = Set(all).subtracting(["bold", "italic"])
+        precondition(keys(["bold", "|", "italic"], onlyBoldItalic) == ["bold", "|", "italic"])
+        precondition(keys(["bold", "|", "italic"], onlyBoldItalic.union(["italic"])) == ["bold"])
+        precondition(keys(["nope", "bold", "bold"]).filter { $0 == "bold" }.count == 1 && !keys(["nope"]).contains("nope"))
+        precondition(order(["italic"]).first == "italic" && order(["italic"]).count == all.count)
+    }
+
     /// Runs after a button press settles; the app uses it to refresh every panel, not just this one.
     var onButtonPressed: () -> Void = {}
 
@@ -73,10 +116,10 @@ final class FormatBar {
         // With a bare caret, the character before it is what new text will look like.
         let location = sel.length > 0 || sel.location == 0 ? sel.location : sel.location - 1
         let attributes = NotesAX.attributes(el, at: location)
-        let hidden = Settings.hiddenBarItems, dividers = Settings.dividerAfter
-        let hiddenChanged = hidden != model.hidden || dividers != model.dividers
+        let hidden = Settings.hiddenBarItems, layout = Settings.barLayout
+        let hiddenChanged = hidden != model.hidden || layout != model.layout
         model.hidden = hidden
-        model.dividers = dividers
+        model.layout = layout
         model.color = attributes[.init("AXForegroundColor")].map { NSColor(cgColor: $0 as! CGColor) } ?? nil
         // Keyed by button icon. AX exposes no traits, so bold/italic come from the font name
         // (.AppleSystemUIFontEmphasized, .AppleSystemUIFontItalic, ...-Bold).
@@ -124,7 +167,7 @@ final class FormatBarModel {
     var color: NSColor?
     var active: Set<String> = []
     var hidden: Set<String> = []
-    var dividers: Set<String> = []
+    var layout: [String] = []
 }
 
 struct FormatBarView: View {
@@ -132,29 +175,29 @@ struct FormatBarView: View {
     let onPress: (FormatBar.Button) -> Void
 
     var body: some View {
-        let visible = FormatBar.buttons.filter { !model.hidden.contains($0.icon) }
         HStack(spacing: 2) {
-            ForEach(visible, id: \.help) { button in
-                SwiftUI.Button { onPress(button) } label: {
-                    Image(systemName: button.icon)
-                        .frame(width: 26, height: 24)
-                        .foregroundStyle(model.active.contains(button.icon) ? Color.accentColor : .primary)
-                        .background(model.active.contains(button.icon) ? Color.accentColor.opacity(0.2) : .clear,
-                                    in: RoundedRectangle(cornerRadius: 5))
-                        .overlay(alignment: .bottom) {
-                            if case .menu(_, let titles) = button.action, titles.first == "색상 보기", let color = model.color {
-                                Capsule().fill(Color(nsColor: color)).frame(width: 16, height: 3)
-                                    .overlay(Capsule().stroke(.secondary, lineWidth: 0.5))
+            ForEach(FormatBar.items(layout: model.layout, hidden: model.hidden)) { item in
+                if let button = item.button {
+                    SwiftUI.Button { onPress(button) } label: {
+                        Image(systemName: button.icon)
+                            .frame(width: 26, height: 24)
+                            .foregroundStyle(model.active.contains(button.icon) ? Color.accentColor : .primary)
+                            .background(model.active.contains(button.icon) ? Color.accentColor.opacity(0.2) : .clear,
+                                        in: RoundedRectangle(cornerRadius: 5))
+                            .overlay(alignment: .bottom) {
+                                if case .menu(_, let titles) = button.action, titles.first == "색상 보기", let color = model.color {
+                                    Capsule().fill(Color(nsColor: color)).frame(width: 16, height: 3)
+                                        .overlay(Capsule().stroke(.secondary, lineWidth: 0.5))
+                                }
                             }
-                        }
-                }
-                .buttonStyle(.borderless)
-                .help(button.help)
-                // Notes owns the cursor while it is frontmost, so re-assert on every move.
-                .onContinuousHover { phase in
-                    if case .active = phase { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
-                }
-                if model.dividers.contains(button.icon), button.icon != visible.last?.icon {
+                    }
+                    .buttonStyle(.borderless)
+                    .help(button.help)
+                    // Notes owns the cursor while it is frontmost, so re-assert on every move.
+                    .onContinuousHover { phase in
+                        if case .active = phase { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
+                    }
+                } else {
                     Divider().frame(height: 16).padding(.horizontal, 2)
                 }
             }

@@ -25,10 +25,10 @@ enum Settings {
         set { UserDefaults.standard.set(Array(newValue), forKey: "hiddenBarItems") }
     }
 
-    /// Icons of buttons that have a separator line drawn after them.
-    static var dividerAfter: Set<String> {
-        get { Set(UserDefaults.standard.stringArray(forKey: "barDividerAfter") ?? []) }
-        set { UserDefaults.standard.set(Array(newValue), forKey: "barDividerAfter") }
+    /// Button icons in display order, with `FormatBar.separatorKey` entries for separator lines. Empty = default order.
+    static var barLayout: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "barLayout") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "barLayout") }
     }
 
     static func set(_ feature: Feature, _ on: Bool) {
