@@ -35,6 +35,11 @@ final class FormatBar {
         .init(icon: "increase.indent", help: "들여쓰기 (⌘])", action: .key(30, .maskCommand)),
         .init(icon: "decrease.indent", help: "내어쓰기 (⌘[)", action: .key(33, .maskCommand)),
         .init(icon: "eraser", help: "스타일 제거", action: .menu(NotesAX.formatMenu, ["스타일 제거", "Remove Style"])),
+        // Format > 정렬 submenu; the menu search descends into it.
+        .init(icon: "text.alignleft", help: "왼쪽 정렬", action: .menu(NotesAX.formatMenu, ["왼쪽 정렬", "Align Left"])),
+        .init(icon: "text.aligncenter", help: "가운데 맞춤", action: .menu(NotesAX.formatMenu, ["가운데 맞춤", "Center"])),
+        .init(icon: "text.justify", help: "좌우 정렬", action: .menu(NotesAX.formatMenu, ["좌우 정렬", "Justify"])),
+        .init(icon: "text.alignright", help: "오른쪽 정렬", action: .menu(NotesAX.formatMenu, ["오른쪽 정렬", "Align Right"])),
     ]
 
     /// Runs after a button press settles; the app uses it to refresh every panel, not just this one.
@@ -68,9 +73,10 @@ final class FormatBar {
         // With a bare caret, the character before it is what new text will look like.
         let location = sel.length > 0 || sel.location == 0 ? sel.location : sel.location - 1
         let attributes = NotesAX.attributes(el, at: location)
-        let hidden = Settings.hiddenBarItems
-        let hiddenChanged = hidden != model.hidden
+        let hidden = Settings.hiddenBarItems, dividers = Settings.dividerAfter
+        let hiddenChanged = hidden != model.hidden || dividers != model.dividers
         model.hidden = hidden
+        model.dividers = dividers
         model.color = attributes[.init("AXForegroundColor")].map { NSColor(cgColor: $0 as! CGColor) } ?? nil
         // Keyed by button icon. AX exposes no traits, so bold/italic come from the font name
         // (.AppleSystemUIFontEmphasized, .AppleSystemUIFontItalic, ...-Bold).
@@ -118,6 +124,7 @@ final class FormatBarModel {
     var color: NSColor?
     var active: Set<String> = []
     var hidden: Set<String> = []
+    var dividers: Set<String> = []
 }
 
 struct FormatBarView: View {
@@ -125,8 +132,9 @@ struct FormatBarView: View {
     let onPress: (FormatBar.Button) -> Void
 
     var body: some View {
+        let visible = FormatBar.buttons.filter { !model.hidden.contains($0.icon) }
         HStack(spacing: 2) {
-            ForEach(FormatBar.buttons.filter { !model.hidden.contains($0.icon) }, id: \.help) { button in
+            ForEach(visible, id: \.help) { button in
                 SwiftUI.Button { onPress(button) } label: {
                     Image(systemName: button.icon)
                         .frame(width: 26, height: 24)
@@ -145,6 +153,9 @@ struct FormatBarView: View {
                 // Notes owns the cursor while it is frontmost, so re-assert on every move.
                 .onContinuousHover { phase in
                     if case .active = phase { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
+                }
+                if model.dividers.contains(button.icon), button.icon != visible.last?.icon {
+                    Divider().frame(height: 16).padding(.horizontal, 2)
                 }
             }
         }

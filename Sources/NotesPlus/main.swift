@@ -32,12 +32,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.representedObject = feature
             item.state = Settings.isOn(feature) ? .on : .off
         }
+        // Tags: 1 = show/hide row, 2 = separator-after row (reset needs to tell them apart).
         let barMenu = NSMenu()
+        barMenu.addItem(.sectionHeader(title: "표시"))
         for button in FormatBar.buttons {
             let item = barMenu.addItem(withTitle: button.help, action: #selector(toggleBarItem(_:)), keyEquivalent: "")
             item.target = self
+            item.tag = 1
             item.representedObject = button.icon
             item.state = Settings.hiddenBarItems.contains(button.icon) ? .off : .on
+        }
+        barMenu.addItem(.sectionHeader(title: "뒤에 구분선"))
+        for button in FormatBar.buttons {
+            let item = barMenu.addItem(withTitle: "\(button.help) 뒤", action: #selector(toggleBarDivider(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = 2
+            item.representedObject = button.icon
+            item.state = Settings.dividerAfter.contains(button.icon) ? .on : .off
         }
         barMenu.addItem(.separator())
         barMenu.addItem(withTitle: "기본값으로", action: #selector(resetBarItems), keyEquivalent: "").target = self
@@ -111,9 +122,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observer.onChange()
     }
 
+    @objc private func toggleBarDivider(_ sender: NSMenuItem) {
+        guard let icon = sender.representedObject as? String else { return }
+        var dividers = Settings.dividerAfter
+        if dividers.contains(icon) { dividers.remove(icon) } else { dividers.insert(icon) }
+        Settings.dividerAfter = dividers
+        sender.state = dividers.contains(icon) ? .on : .off
+        observer.onChange()
+    }
+
     @objc private func resetBarItems(_ sender: NSMenuItem) {
         Settings.hiddenBarItems = []
-        sender.menu?.items.forEach { if $0.representedObject != nil { $0.state = .on } }
+        Settings.dividerAfter = []
+        sender.menu?.items.forEach { $0.state = $0.tag == 1 ? .on : .off }
         observer.onChange()
     }
 

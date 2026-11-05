@@ -25,6 +25,12 @@ enum Settings {
         set { UserDefaults.standard.set(Array(newValue), forKey: "hiddenBarItems") }
     }
 
+    /// Icons of buttons that have a separator line drawn after them.
+    static var dividerAfter: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "barDividerAfter") ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: "barDividerAfter") }
+    }
+
     static func set(_ feature: Feature, _ on: Bool) {
         UserDefaults.standard.set(on, forKey: feature.rawValue)
     }
