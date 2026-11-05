@@ -27,7 +27,7 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 720, height: 620)
+        .frame(width: 720, height: 740)
     }
 
     private var sidebar: some View {
@@ -105,19 +105,22 @@ private struct GeneralSettings: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 PaneHeader(title: "일반", subtitle: "Notes에 더해지는 기능을 켜고 끕니다.")
                 card("기능") {
                     let entries = MenuEntry.allCases.filter { $0.feature != nil }
                     ForEach(entries) { entry in
                         if let feature = entry.feature {
-                            row(entry, Binding(get: { features[feature] ?? true }, set: { features[feature] = $0; actions.setFeature(feature, $0) }))
+                            toggleRow(entry, Binding(get: { features[feature] ?? true }, set: { features[feature] = $0; actions.setFeature(feature, $0) }))
                             if entry != entries.last { Divider().padding(.leading, 52) }
                         }
                     }
                 }
                 card("시작") {
-                    row(.login, Binding(get: { login }, set: { login = actions.setLogin($0) }))
+                    toggleRow(.login, Binding(get: { login }, set: { login = actions.setLogin($0) }))
+                }
+                card("템플릿") {
+                    settingRow(.templates) { Button("열기") { actions.run(.templates) } }
                 }
                 card("메뉴 막대 패널") {
                     HStack {
@@ -134,6 +137,11 @@ private struct GeneralSettings: View {
                     }
                     .padding(12)
                 }
+                card("앱") {
+                    settingRow(.update) { Button("확인") { actions.run(.update) } }
+                    Divider().padding(.leading, 52)
+                    settingRow(.quit) { Button("종료", role: .destructive) { actions.run(.quit) } }
+                }
             }
             .padding(20)
         }
@@ -148,7 +156,13 @@ private struct GeneralSettings: View {
         }
     }
 
-    private func row(_ entry: MenuEntry, _ isOn: Binding<Bool>) -> some View {
+    private func toggleRow(_ entry: MenuEntry, _ isOn: Binding<Bool>) -> some View {
+        settingRow(entry) { Toggle("", isOn: isOn).toggleStyle(.switch).labelsHidden() }
+            .contentShape(Rectangle())
+            .onTapGesture { isOn.wrappedValue.toggle() }
+    }
+
+    private func settingRow(_ entry: MenuEntry, @ViewBuilder trailing: () -> some View) -> some View {
         HStack(spacing: 12) {
             Image(systemName: entry.symbol)
                 .font(.system(size: 13, weight: .semibold))
@@ -160,10 +174,8 @@ private struct GeneralSettings: View {
                 Text(entry.subtitle).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Toggle("", isOn: isOn).toggleStyle(.switch).labelsHidden()
+            trailing()
         }
         .padding(12)
-        .contentShape(Rectangle())
-        .onTapGesture { isOn.wrappedValue.toggle() }
     }
 }

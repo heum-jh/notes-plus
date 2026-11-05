@@ -37,7 +37,7 @@ enum MenuEntry: String, CaseIterable, Identifiable {
         case .settings: "기능 켜기·끄기, 서식 바 구성"
         case .templates: "템플릿 파일을 추가하고 정리"
         case .update: "새 버전이 있는지 확인"
-        case .quit: "메뉴 막대에서 내려요"
+        case .quit: "NotesPlus를 종료합니다"
         }
     }
 
@@ -70,7 +70,7 @@ enum MenuEntry: String, CaseIterable, Identifiable {
     }
 
     /// Rows of the menu bar panel, which can be reordered by dragging.
-    static let panelEntries: [MenuEntry] = [.settings, .templates, .update, .quit]
+    static let panelEntries: [MenuEntry] = [.settings, .update, .quit]
 
     /// Saved order made complete: unknown or repeated rows dropped, rows added since the order was saved appended.
     static func ordered(_ saved: [String]) -> [MenuEntry] {
@@ -84,7 +84,7 @@ enum MenuEntry: String, CaseIterable, Identifiable {
     static func selfTest() {
         precondition(ordered([]) == panelEntries)
         // Rows that moved to the settings window (old saved orders include them) are dropped.
-        precondition(ordered(["quit", "nope", "slash", "quit", "update"]) == [.quit, .update, .settings, .templates])
+        precondition(ordered(["quit", "nope", "slash", "templates", "quit", "update"]) == [.quit, .update, .settings])
         precondition(ordered(["quit"]).count == panelEntries.count)
         precondition(ordered(["barSettings"]).first == .settings)
     }
@@ -100,7 +100,7 @@ struct MenuActions {
 }
 
 struct MenuPanelView: View {
-    static let size = NSSize(width: 320, height: 272)
+    static let size = NSSize(width: 280, height: 200)
 
     let actions: MenuActions
     @State private var order = MenuEntry.ordered(Settings.menuOrder)
@@ -119,10 +119,6 @@ struct MenuPanelView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            Text("행을 끌어서 순서를 바꿀 수 있어요")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.vertical, 8)
         }
         .frame(width: Self.size.width, height: Self.size.height)
     }
@@ -159,10 +155,7 @@ private struct MenuRow: View {
                 .background(LinearGradient(colors: [entry.color.opacity(0.95), entry.color.opacity(0.7)], startPoint: .top, endPoint: .bottom),
                             in: RoundedRectangle(cornerRadius: 7))
                 .shadow(color: entry.color.opacity(hovering ? 0.45 : 0.2), radius: hovering ? 5 : 2, y: 1)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.title).font(.system(size: 13, weight: .medium))
-                Text(entry.subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-            }
+            Text(entry.title).font(.system(size: 13, weight: .medium))
             Spacer(minLength: 4)
             Image(systemName: "line.3.horizontal")
                 .font(.caption)
