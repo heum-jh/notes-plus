@@ -68,6 +68,9 @@ final class FormatBar {
         // With a bare caret, the character before it is what new text will look like.
         let location = sel.length > 0 || sel.location == 0 ? sel.location : sel.location - 1
         let attributes = NotesAX.attributes(el, at: location)
+        let hidden = Settings.hiddenBarItems
+        let hiddenChanged = hidden != model.hidden
+        model.hidden = hidden
         model.color = attributes[.init("AXForegroundColor")].map { NSColor(cgColor: $0 as! CGColor) } ?? nil
         // Keyed by button icon. AX exposes no traits, so bold/italic come from the font name
         // (.AppleSystemUIFontEmphasized, .AppleSystemUIFontItalic, ...-Bold).
@@ -78,7 +81,10 @@ final class FormatBar {
             attributes[.init("AXUnderline")] as? Int == 1 ? "underline" : nil,
             attributes[.init("AXStrikethrough")] as? Int == 1 ? "strikethrough" : nil,
         ].compactMap { $0 })
-        panel.show(bottomLeft: NSPoint(x: rect.minX, y: rect.maxY + 6))
+        let origin = NSPoint(x: rect.minX, y: rect.maxY + 6)
+        panel.show(bottomLeft: origin)
+        // The panel was sized before SwiftUI applied the new button set; size it again once it has.
+        if hiddenChanged { DispatchQueue.main.async { [weak self] in self?.panel.show(bottomLeft: origin) } }
     }
 
     /// Notes 27 never removes an underline: ⌘U and the menu item only add it.
@@ -111,6 +117,7 @@ final class FormatBar {
 final class FormatBarModel {
     var color: NSColor?
     var active: Set<String> = []
+    var hidden: Set<String> = []
 }
 
 struct FormatBarView: View {
@@ -119,7 +126,7 @@ struct FormatBarView: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(FormatBar.buttons, id: \.help) { button in
+            ForEach(FormatBar.buttons.filter { !model.hidden.contains($0.icon) }, id: \.help) { button in
                 SwiftUI.Button { onPress(button) } label: {
                     Image(systemName: button.icon)
                         .frame(width: 26, height: 24)

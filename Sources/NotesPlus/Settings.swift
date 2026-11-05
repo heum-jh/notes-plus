@@ -19,6 +19,12 @@ enum Settings {
         UserDefaults.standard.object(forKey: feature.rawValue) as? Bool ?? true
     }
 
+    /// Icons (the buttons' ids) of format bar buttons the user switched off.
+    static var hiddenBarItems: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "hiddenBarItems") ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: "hiddenBarItems") }
+    }
+
     static func set(_ feature: Feature, _ on: Bool) {
         UserDefaults.standard.set(on, forKey: feature.rawValue)
     }

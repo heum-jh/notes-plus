@@ -32,6 +32,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.representedObject = feature
             item.state = Settings.isOn(feature) ? .on : .off
         }
+        let barMenu = NSMenu()
+        for button in FormatBar.buttons {
+            let item = barMenu.addItem(withTitle: button.help, action: #selector(toggleBarItem(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = button.icon
+            item.state = Settings.hiddenBarItems.contains(button.icon) ? .off : .on
+        }
+        barMenu.addItem(.separator())
+        barMenu.addItem(withTitle: "기본값으로", action: #selector(resetBarItems), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "서식 바 항목", action: nil, keyEquivalent: "").submenu = barMenu
         let login = menu.addItem(withTitle: "로그인 시 자동 실행", action: #selector(toggleLogin(_:)), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -83,6 +93,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sender.state = Settings.isOn(feature) ? .on : .off
         slash.hide()
         observer.onChange()  // Panels of a feature that was just turned off close right away.
+    }
+
+    @objc private func toggleBarItem(_ sender: NSMenuItem) {
+        guard let icon = sender.representedObject as? String else { return }
+        var hidden = Settings.hiddenBarItems
+        if hidden.contains(icon) {
+            hidden.remove(icon)
+        } else if hidden.count + 1 < FormatBar.buttons.count {
+            hidden.insert(icon)
+        } else {
+            NSSound.beep()  // An empty bar would be a stray blank pill; turn the whole bar off from the main menu instead.
+            return
+        }
+        Settings.hiddenBarItems = hidden
+        sender.state = hidden.contains(icon) ? .off : .on
+        observer.onChange()
+    }
+
+    @objc private func resetBarItems(_ sender: NSMenuItem) {
+        Settings.hiddenBarItems = []
+        sender.menu?.items.forEach { if $0.representedObject != nil { $0.state = .on } }
+        observer.onChange()
     }
 
     @objc private func toggleLogin(_ sender: NSMenuItem) {
