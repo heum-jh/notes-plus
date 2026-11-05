@@ -73,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         if panel.isShown { panel.performClose(nil); return }
         panel.contentViewController = NSHostingController(rootView: MenuPanelView(actions: menuActions()))
+        // SwiftUI sizes the popover after it is shown, which makes it grow upward off the screen; fix the size first.
+        panel.contentSize = MenuPanelView.size
         panel.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 

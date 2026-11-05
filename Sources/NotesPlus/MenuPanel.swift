@@ -95,6 +95,8 @@ struct MenuActions {
 }
 
 struct MenuPanelView: View {
+    static let size = NSSize(width: 320, height: 540)
+
     let actions: MenuActions
     @State private var order = MenuEntry.ordered(Settings.menuOrder)
     @State private var features = Dictionary(uniqueKeysWithValues: Settings.Feature.allCases.map { ($0, Settings.isOn($0)) })
@@ -119,7 +121,7 @@ struct MenuPanelView: View {
                 .foregroundStyle(.tertiary)
                 .padding(.vertical, 8)
         }
-        .frame(width: 320, height: 540)
+        .frame(width: Self.size.width, height: Self.size.height)
         .onAppear { login = actions.loginEnabled() }
     }
 
